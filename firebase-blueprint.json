@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "UserPreferences": {
+      "title": "UserPreferences",
+      "description": "Accessibility, language, notification, and opt-in history preferences for a signed-in CheckFirst user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase user UID matching the parent document path."
+        },
+        "tamil": {
+          "type": "boolean",
+          "description": "Whether the Tamil interface language is active."
+        },
+        "simpleMode": {
+          "type": "boolean",
+          "description": "Whether Simple Mode with larger targets and concise guidance is enabled."
+        },
+        "largeText": {
+          "type": "boolean",
+          "description": "Whether enlarged accessible text scaling is enabled."
+        },
+        "safetyTips": {
+          "type": "boolean",
+          "description": "Whether in-app educational safety reminders are enabled."
+        },
+        "completionAlerts": {
+          "type": "boolean",
+          "description": "Whether scan completion notice banners are enabled."
+        },
+        "saveHistory": {
+          "type": "boolean",
+          "description": "Opt-in toggle for saving metadata-only check history (off by default)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on every write."
+        }
+      },
+      "required": [
+        "userId",
+        "tamil",
+        "simpleMode",
+        "largeText",
+        "safetyTips",
+        "completionAlerts",
+        "saveHistory",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CheckHistoryEntry": {
+      "title": "CheckHistoryEntry",
+      "description": "Opt-in metadata-only record of a financial safety check. Never stores raw messages, QR payloads, UPI IDs, PINs, or OTPs.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase user UID matching the parent document path."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Category of check performed (e.g., Message scan, UPI link analysis, Loan cost calculation, Loan risk check)."
+        },
+        "label": {
+          "type": "string",
+          "description": "Generic privacy-safe summary label without user-entered sensitive data."
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["danger", "caution", "clear"],
+          "description": "Assessment tier produced by the check."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        }
+      },
+      "required": [
+        "userId",
+        "kind",
+        "label",
+        "risk",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": {
+        "$ref": "#/entities/UserPreferences"
+      },
+      "description": "Owner-isolated user accessibility and privacy preferences (document ID: default)."
+    },
+    "/users/{userId}/checkHistory/{entryId}": {
+      "schema": {
+        "$ref": "#/entities/CheckHistoryEntry"
+      },
+      "description": "Owner-isolated opt-in metadata-only check history entries."
+    }
+  }
+}

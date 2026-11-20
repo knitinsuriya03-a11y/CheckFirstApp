@@ -1,0 +1,499 @@
+CHECKFIRST FRONTEND CODEBASE FLATPACK
+Each section contains the exact contents of one project file. Recreate the paths exactly.
+
+=== FILE: checkfirst-frontend/.gitignore ===
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+coverage/
+playwright-report/
+test-results/
+.firebase/
+service-account*.json
+=== END FILE: checkfirst-frontend/.gitignore ===
+
+=== FILE: checkfirst-frontend/src/vite-env.d.ts ===
+/// <reference types="vite/client" />
+=== END FILE: checkfirst-frontend/src/vite-env.d.ts ===
+
+=== FILE: checkfirst-frontend/src/App.tsx ===
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  Activity, AlertCircle, AlertTriangle, ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight,
+  BadgeCheck, Bell, BookOpen, Check, CheckCircle2, ChevronDown, ChevronRight, CircleHelp,
+  Clipboard, Clock3, FileImage, FileText, Globe2, Home, IndianRupee, Languages, LayoutDashboard,
+  LifeBuoy, Loader2, LockKeyhole, Menu, MessageSquareWarning, QrCode, RefreshCw, ScanLine,
+  Settings as SettingsIcon, Shield, ShieldAlert, ShieldCheck, Smartphone, Upload, Wallet,
+  X, type LucideIcon,
+} from 'lucide-react';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import jsQR from 'jsqr';
+
+type Risk = 'danger' | 'caution' | 'clear';
+type ActivityItem = { id: string; kind: string; label: string; risk: Risk; date: string; demo?: boolean };
+type Prefs = { tamil: boolean; simple: boolean; large: boolean; safetyTips: boolean; completionAlerts: boolean; saveHistory: boolean };
+
+const NAV: { label: string; path: string; icon: LucideIcon; group?: string }[] = [
+  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { label: 'Scam Message Scanner', path: '/scanner', icon: MessageSquareWarning },
+  { label: 'QR & Payment Link Analyzer', path: '/qr-analyzer', icon: QrCode },
+  { label: 'Pause & Verify Guide', path: '/guide', icon: BookOpen },
+  { label: 'Emergency Help', path: '/emergency', icon: LifeBuoy },
+  { label: 'Loan Cost Calculator', path: '/loan-calculator', icon: IndianRupee, group: 'BORROW WITH CLARITY' },
+  { label: 'Loan Risk Checker', path: '/loan-risk', icon: ShieldAlert },
+  { label: 'Settings', path: '/settings', icon: SettingsIcon },
+];
+const initialPrefs: Prefs = { tamil: false, simple: false, large: false, safetyTips: true, completionAlerts: false, saveHistory: false };
+const starterActivity: ActivityItem[] = [
+  { id: 'demo-1', kind: 'Message scan', label: 'Bank refund message', risk: 'danger', date: 'Sample · 10:42 AM', demo: true },
+  { id: 'demo-2', kind: 'Loan check', label: 'Short-term loan offer', risk: 'caution', date: 'Sample · 10:35 AM', demo: true },
+  { id: 'demo-3', kind: 'Link analysis', label: 'Payment link preview', risk: 'caution', date: 'Sample · Yesterday', demo: true },
+];
+const weekly = [
+  { day: 'Mon', checks: 12 }, { day: 'Tue', checks: 16 }, { day: 'Wed', checks: 14 }, { day: 'Thu', checks: 20 },
+  { day: 'Fri', checks: 18 }, { day: 'Sat', checks: 22 }, { day: 'Sun', checks: 18 },
+];
+const riskDistribution = [
+  { name: 'Danger', value: 30, color: '#b72d37' }, { name: 'Caution', value: 54, color: '#c78b2b' }, { name: 'No red flags found', value: 36, color: '#087f78' },
+];
+const warnings = [
+  { label: 'Urgency / pressure', value: 42 }, { label: 'PIN or OTP request', value: 30 },
+  { label: 'Upfront payment', value: 24 }, { label: 'Unfamiliar link', value: 18 },
+];
+
+function getPrefs(): Prefs {
+  try { return { ...initialPrefs, ...JSON.parse(localStorage.getItem('checkfirst-prefs') || '{}') }; }
+  catch { return initialPrefs; }
+}
+function loadHistory(): ActivityItem[] {
+  try { return JSON.parse(localStorage.getItem('checkfirst-history') || '[]'); } catch { return []; }
+}
+function useAppState() {
+  const [prefs, setPrefs] = useState<Prefs>(getPrefs);
+  const [activity, setActivity] = useState<ActivityItem[]>(loadHistory);
+  const [notice, setNotice] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => { localStorage.setItem('checkfirst-prefs', JSON.stringify(prefs)); }, [prefs]);
+  useEffect(() => {
+    if (prefs.saveHistory) localStorage.setItem('checkfirst-history', JSON.stringify(activity.slice(0, 30)));
+    else localStorage.removeItem('checkfirst-history');
+  }, [activity, prefs.saveHistory]);
+  useEffect(() => {
+    if (!notice) return;
+    const t = window.setTimeout(() => setNotice(''), 3600);
+    return () => window.clearTimeout(t);
+  }, [notice]);
+  const addActivity = (item: Omit<ActivityItem, 'id' | 'date'>) => {
+    if (!prefs.saveHistory) return;
+    setActivity(prev => [{ ...item, id: crypto.randomUUID(), date: new Date().toLocaleString() }, ...prev].slice(0, 30));
+  };
+  return { prefs, setPrefs, activity, addActivity, notice, setNotice, menuOpen, setMenuOpen };
+}
+type AppState = ReturnType<typeof useAppState>;
+
+function RiskBadge({ risk, children }: { risk: Risk; children?: ReactNode }) {
+  const text = children ?? (risk === 'danger' ? 'DANGER' : risk === 'caution' ? 'CAUTION' : 'NO RED FLAGS FOUND');
+  return <span className={`risk-badge ${risk}`}>{text}</span>;
+}
+function PageTitle({ eyebrow, title, subtitle, right }: { eyebrow?: string; title: string; subtitle?: string; right?: ReactNode }) {
+  return <div className="page-title"><div>{eyebrow && <div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{right && <div className="title-actions">{right}</div>}</div>;
+}
+function Card({ children, className = '' }: { children: ReactNode; className?: string }) { return <section className={`card ${className}`}>{children}</section>; }
+function SectionHeading({ title, note }: { title: string; note?: string }) { return <div className="section-heading"><h2>{title}</h2>{note && <span>{note}</span>}</div>; }
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) { return <label className="field"><span className="field-label">{label}</span>{children}{hint && <span className="field-hint">{hint}</span>}</label>; }
+function StatusPanel({ risk, title, reasons, action }: { risk: Risk; title: string; reasons: string[]; action?: string }) {
+  return <Card className={`result-panel result-${risk}`}><div className="result-top"><div className={`result-icon ${risk}`}>{risk === 'danger' ? <ShieldAlert/> : risk === 'caution' ? <AlertTriangle/> : <ShieldCheck/>}</div><div><RiskBadge risk={risk}/><h2>{title}</h2></div></div><div className="reason-list">{reasons.map((reason, i) => <div className="reason" key={i}><AlertCircle size={17}/><span>{reason}</span></div>)}</div>{action && <div className="result-action">{action}</div>}<p className="fine-print">This is a warning assessment, not a guarantee of legitimacy or proof of fraud.</p></Card>;
+}
+function Layout({ state, children }: { state: AppState; children: ReactNode }) {
+  const location = useLocation();
+  const current = NAV.find(n => n.path === location.pathname) ?? NAV[0];
+  const [profileOpen, setProfileOpen] = useState(false);
+  const tamil = state.prefs.tamil;
+  const label = (s: string) => tamil ? ({ Dashboard: 'முகப்பு', 'Scam Message Scanner': 'மோசடி செய்தி சோதனை', 'QR & Payment Link Analyzer': 'QR / கட்டண இணைப்பு', 'Pause & Verify Guide': 'நிறுத்தி சரிபார்க்கவும்', 'Emergency Help': 'அவசர உதவி', 'Loan Cost Calculator': 'கடன் செலவு கணிப்பான்', 'Loan Risk Checker': 'கடன் அபாய சோதனை', Settings: 'அமைப்புகள்' } as Record<string, string>)[s] ?? s : s;
+  return <div className={`app-shell ${state.prefs.large ? 'large-text' : ''} ${state.prefs.simple ? 'simple-mode' : ''}`}>
+    {state.menuOpen && <button className="mobile-scrim" aria-label="Close menu" onClick={() => state.setMenuOpen(false)}/>}
+    <aside className={`sidebar ${state.menuOpen ? 'open' : ''}`}>
+      <div className="brand"><div className="brand-mark"><ShieldCheck size={22}/></div><div><strong>CheckFirst</strong><small>Check before you pay or borrow.</small></div><button className="icon-button mobile-close" aria-label="Close navigation" onClick={() => state.setMenuOpen(false)}><X/></button></div>
+      <nav className="nav-list" aria-label="Main navigation">
+        {NAV.map(item => <div key={item.path}>{item.group && <div className="nav-group-label">{item.group}</div>}<NavLink to={item.path} end={item.path === '/'} onClick={() => state.setMenuOpen(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><item.icon size={18}/><span>{label(item.label)}</span></NavLink></div>)}
+      </nav>
+      <Link to="/emergency" className="urgent-card"><strong>Need urgent help?</strong><span>Lost money to a scam? Call 1930 right away.</span><b>Go to Emergency Help <ArrowRight size={14}/></b></Link>
+      <div className="sidebar-foot"><Shield size={14}/> Financial safety, simplified</div>
+    </aside>
+    <main className="main-area">
+      <header className="topbar"><div className="crumb"><button className="icon-button hamburger" aria-label="Open navigation" onClick={() => state.setMenuOpen(true)}><Menu/></button><div><span>CheckFirst / {current.label}</span><strong>{label(current.label)}</strong></div></div>
+        <div className="top-actions"><button className="language-button" onClick={() => state.setPrefs(p => ({ ...p, tamil: !p.tamil }))}><Languages size={16}/>{tamil ? 'தமிழ்' : 'English'} / தமிழ்</button><button className={`simple-toggle ${state.prefs.simple ? 'on' : ''}`} onClick={() => state.setPrefs(p => ({ ...p, simple: !p.simple }))}>Simple Mode <span/></button><div className="profile-wrap"><button className="profile-button" onClick={() => setProfileOpen(v => !v)} aria-expanded={profileOpen}><span className="avatar">D</span><span>Demo</span><ChevronDown size={14}/></button>{profileOpen && <div className="profile-menu"><div className="profile-meta"><strong>Demo workspace</strong><small>Local prototype session</small></div><Link to="/settings" onClick={() => setProfileOpen(false)}>Preferences</Link><button onClick={() => { setProfileOpen(false); state.setNotice('You are using the CheckFirst demo workspace.'); }}>About this demo</button></div>}</div></div>
+      </header>
+      <div className="page-content">{children}</div>
+      <footer className="footer"><strong>CHECKFIRST / FINANCIAL SAFETY, SIMPLIFIED</strong><span>A moment of caution. A safer decision.</span><span className="footer-disclaimer">Illustrative prototype · Not a bank or payment service</span></footer>
+    </main>
+    {state.notice && <div className="toast" role="status"><CheckCircle2 size={17}/>{state.notice}<button aria-label="Dismiss" onClick={() => state.setNotice('')}><X size={15}/></button></div>}
+  </div>;
+}
+
+function Dashboard({ state }: { state: AppState }) {
+  const real = state.activity;
+  const hasHistory = state.prefs.saveHistory && real.length > 0;
+  return <>
+    <div className="hero"><div className="hero-copy"><div className="eyebrow light">YOUR EVERYDAY FINANCIAL SAFETY COMPANION</div><h1>Welcome to CheckFirst</h1><p>Stay one step ahead of scams and risky loans.</p><div className="hero-actions"><Link className="button button-primary" to="/scanner">Scan a Suspicious Message <ArrowRight size={16}/></Link><Link className="button button-light" to="/loan-risk">Check a Loan Offer</Link></div></div><div className="hero-promise"><div className="promise-check"><Check size={28}/></div><h2>A small pause.<br/>A smarter decision.</h2><p>Check before you pay or borrow.</p></div></div>
+    <div className="section-heading"><h2>What would you like to check?</h2><span>Choose a tool to get started</span></div>
+    <div className="quick-grid">
+      <QuickCard num="01 / MESSAGE SAFETY" title="Scam Message Scanner" desc="Analyze suspicious SMS, WhatsApp messages, or call scripts." cta="Scan a message" to="/scanner" icon={MessageSquareWarning}/>
+      <QuickCard num="02 / PAYMENT SAFETY" title="QR & Payment Link Analyzer" desc="Inspect UPI QR codes and payment links before you proceed." cta="Check a payment" to="/qr-analyzer" icon={QrCode}/>
+      <QuickCard num="03 / BORROWING CLARITY" title="Loan Cost Calculator" desc="Understand the actual cost of borrowing, not just the headline rate." cta="Calculate loan cost" to="/loan-calculator" icon={IndianRupee}/>
+      <QuickCard num="04 / BORROWING SAFETY" title="Loan Risk Checker" desc="Identify warning signs in loan offers before you agree." cta="Review an offer" to="/loan-risk" icon={ShieldAlert}/>
+    </div>
+    <div className="safety-grid"><Card className="safety-card"><div className="safety-icon"><LockKeyhole/></div><div><h3>A little awareness goes a long way</h3><p className="credential-warning">Never share your UPI PIN, OTP, or banking password.</p><h4>Watch for these warning signs</h4><ul className="compact-list"><li>“Act now” pressure or threats to block your account.</li><li>Requests to scan a QR code to receive a refund.</li><li>Unexpected fees before a job, prize, or loan.</li></ul></div></Card><Card className="tip-card"><span className="eyebrow">SAFETY TIP / 01 OF 03</span><h3>Receiving money?<br/>You don’t need a PIN.</h3><p>A UPI PIN authorizes money leaving your account. Pause if someone says you need one to receive money.</p><Link to="/guide" className="text-link">Read the Pause & Verify Guide <ArrowRight size={15}/></Link></Card></div>
+    <section className="analytics-section"><div className="section-heading"><h2>Demo analytics</h2><span>Fictional sample data · not live activity</span></div>
+      <div className="stats-grid"><Stat label="Total Sample Checks" value={hasHistory ? String(real.length) : '120'} note={hasHistory ? 'Opt-in local history' : 'Illustrative demo'} icon={Activity}/><Stat label="Danger Results" value={hasHistory ? String(real.filter(x=>x.risk==='danger').length) : '30'} note="Sample checks" icon={ShieldAlert} tone="red"/><Stat label="Caution Results" value={hasHistory ? String(real.filter(x=>x.risk==='caution').length) : '54'} note="Sample checks" icon={AlertTriangle} tone="amber"/><Stat label="No Red Flags Found" value={hasHistory ? String(real.filter(x=>x.risk==='clear').length) : '36'} note="Not a safety guarantee" icon={ShieldCheck} tone="green"/></div>
+      {!hasHistory && <p className="demo-note"><CircleHelp size={15}/> These numbers are fictional examples used to demonstrate the dashboard. They are not scams prevented, real users, or live detections.</p>}
+      <div className="chart-grid"><Card className="chart-card"><div className="card-heading"><div><h3>Risk distribution</h3><p>Illustrative demo data</p></div><span className="chart-tag">120 checks</span></div><div className="donut-wrap"><ResponsiveContainer width="100%" height={220}><PieChart><Pie data={riskDistribution} dataKey="value" nameKey="name" innerRadius={67} outerRadius={92} paddingAngle={3} stroke="none">{riskDistribution.map((v,i)=><Cell key={i} fill={v.color}/>)}</Pie><Tooltip formatter={(v:any,n:any)=>[v,n]}/></PieChart></ResponsiveContainer><div className="donut-center"><strong>120</strong><span>checks</span></div></div><div className="legend-list">{riskDistribution.map(v=><div key={v.name}><i style={{background:v.color}}/><span>{v.name}</span><strong>{v.value} <small>({Math.round(v.value/120*100)}%)</small></strong></div>)}</div><p className="fine-print">No result guarantees legitimacy.</p></Card>
+        <Card className="chart-card"><div className="card-heading"><div><h3>Seven-day activity</h3><p>Illustrative demo data</p></div><span className="chart-tag">Sample week</span></div><div className="bar-wrap"><ResponsiveContainer width="100%" height={250}><BarChart data={weekly} margin={{top:18,right:8,left:-22,bottom:0}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8eef1"/><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill:'#5c6e7b',fontSize:12}}/><YAxis domain={[0,25]} ticks={[0,5,10,15,20,25]} axisLine={false} tickLine={false} tick={{fill:'#8997a1',fontSize:11}}/><Tooltip cursor={{fill:'#f3f7f8'}}/><Bar dataKey="checks" fill="#087f78" radius={[6,6,0,0]} maxBarSize={30}/></BarChart></ResponsiveContainer></div><p className="fine-print">Bar height starts at zero. Total across the week: 120 sample checks.</p></Card></div>
+      <Card className="warning-chart"><div className="card-heading"><div><h3>Common warning indicators</h3><p>Counts among 120 sample checks · one check may contain multiple indicators</p></div></div><div className="warning-bars">{warnings.map(w=><div className="warning-row" key={w.label}><div><span>{w.label}</span><strong>{w.value}</strong></div><div className="progress-track"><div className="progress-fill" style={{width:`${w.value/120*100}%`}}/></div></div>)}</div><p className="fine-print">These are illustrative counts, not measured prevalence rates.</p></Card>
+    </section>
+    <Card className="activity-card"><div className="card-heading"><div><h3>{hasHistory ? 'Your local check history' : 'Sample check history'}</h3><p>{hasHistory ? 'Saved on this device because you enabled local history.' : 'Example checks for this demonstration. Messages are not stored automatically.'}</p></div><Link to="/settings" className="text-link">Privacy settings <ArrowRight size={14}/></Link></div>{(hasHistory ? real : starterActivity).slice(0,5).map(item=><div className="activity-row" key={item.id}><div className="activity-icon"><FileText size={18}/></div><div className="activity-main"><strong>{item.label}</strong><span>{item.kind} · {item.date}</span></div><RiskBadge risk={item.risk}/></div>)}{hasHistory && <button className="text-button" onClick={()=>{state.setPrefs(p=>({...p,saveHistory:false}));state.setNotice('Local history disabled. Saved check metadata has been cleared.');}}>Turn off and clear local history</button>}</Card>
+  </>;
+}
+function QuickCard({ num, title, desc, cta, to, icon: Icon }: { num: string; title: string; desc: string; cta: string; to: string; icon: LucideIcon }) { return <Link to={to} className="quick-card"><div className="quick-top"><span className="eyebrow">{num}</span><Icon size={22}/></div><h3>{title}</h3><p>{desc}</p><b>{cta} <ArrowRight size={15}/></b></Link>; }
+function Stat({ label, value, note, icon: Icon, tone }: { label: string; value: string; note: string; icon: LucideIcon; tone?: string }) { return <Card className="stat-card"><div className={`stat-icon ${tone??''}`}><Icon size={18}/></div><span>{label}</span><strong>{value}</strong><small>{note}</small></Card>; }
+
+function scanMessage(message: string) {
+  const rules: { id: string; label: string; explanation: string; regex: RegExp; severity: Risk }[] = [
+    { id:'urgency', label:'Urgency or pressure', explanation:'The message creates pressure to act quickly instead of giving you time to verify independently.', regex:/\b(within\s*\d+\s*(minute|min|hour)|immediately|urgent|act now|last chance|expire soon|today only|account.*block|10 minutes)\b|உடனே|அவசரம்|நிமிடத்தில்/i, severity:'caution' },
+    { id:'authority', label:'Possible impersonation', explanation:'It claims to represent a bank, government body, police, courier, or service provider. Verify using a known official channel.', regex:/\b(bank|rbi|police|cyber cell|courier|electricity board|customs|income tax|kyc|customer care)\b|வங்கி|காவல்துறை/i, severity:'caution' },
+    { id:'refund', label:'Refund or receive-money wording', explanation:'It presents a QR scan, payment approval, or PIN entry as a way to receive a refund. A UPI PIN authorizes an outgoing payment.', regex:/\b(refund|cashback|receive money|credit.*refund|scan.*qr|qr.*refund|claim.*refund)\b|பணத்தைப் பெற|திரும்பப் பணம்/i, severity:'danger' },
+    { id:'credential', label:'Sensitive credential request', explanation:'A request for a UPI PIN, OTP, password, or banking credential is a serious warning sign. Never share these details.', regex:/\b(upi\s*pin|otp|one.?time password|bank password|card pin|cvv|password|share.*pin|enter.*pin)\b|ரகசிய எண்|கடவுச்சொல்/i, severity:'danger' },
+    { id:'fee', label:'Upfront payment request', explanation:'The message appears to ask for a fee before a reward, refund, job, or service is delivered.', regex:/\b(processing fee|registration fee|pay.*first|advance fee|unlock.*payment|verification fee)\b|முன்பணம்/i, severity:'caution' },
+    { id:'lure', label:'Prize or job lure', explanation:'Unexpected prizes or job offers can be used to start a conversation that later asks for money or personal information.', regex:/\b(congratulations|winner|prize|lottery|selected for job|work from home|guaranteed income|reward)\b|பரிசு/i, severity:'caution' },
+    { id:'link', label:'Link or contact needs verification', explanation:'The message includes a link or asks you to contact a number. Do not use contact details supplied in a suspicious message.', regex:/(https?:\/\/|www\.|bit\.ly|tinyurl|wa\.me|\b\d{10}\b)/i, severity:'caution' },
+  ];
+  const matches = rules.filter(r => r.regex.test(message));
+  const risk: Risk = matches.some(m=>m.severity==='danger') ? 'danger' : matches.length ? 'caution' : 'clear';
+  return { risk, matches, verdict: risk==='danger' ? 'Several serious warning signs were found.' : risk==='caution' ? 'Some details deserve independent verification.' : 'No configured warning patterns were found in this text.' };
+}
+function highlightText(text: string, terms: string[]) {
+  const matches = Array.from(new Set(terms)).filter(Boolean).sort((a,b)=>b.length-a.length);
+  if (!matches.length) return text;
+  const escaped = matches.map(s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  const re = new RegExp(`(${escaped.join('|')})`, 'gi');
+  return text.split(re).map((part,i)=>matches.some(m=>m.toLowerCase()===part.toLowerCase()) ? <mark key={i}>{part}</mark> : <span key={i}>{part}</span>);
+}
+function ScannerPage({ state }: { state: AppState }) {
+  const [message,setMessage] = useState(''); const [language,setLanguage] = useState('English'); const [result,setResult] = useState<ReturnType<typeof scanMessage>|null>(null); const [busy,setBusy] = useState(false);
+  const sample = 'Congratulations! Your bank refund is pending. Scan this QR code and enter your UPI PIN within 10 minutes to receive your refund: https://example.invalid/refund';
+  const analyze = (e?: FormEvent) => { e?.preventDefault(); if (!message.trim()) { state.setNotice('Paste a message before scanning.'); return; } if (message.length>5000) { state.setNotice('Please keep the message under 5,000 characters.'); return; } setBusy(true); window.setTimeout(()=>{ const r=scanMessage(message);setResult(r);setBusy(false);state.addActivity({kind:'Message scan',label:'Message scan result',risk:r.risk}); },450); };
+  const matches = result?.matches ?? [];
+  return <><PageTitle eyebrow="MESSAGE SAFETY" title="Scam Message Scanner" subtitle="Paste a suspicious message and check for common scam indicators." right={<span className="privacy-chip"><LockKeyhole size={14}/> Not saved automatically</span>}/>
+    <div className="scanner-layout"><div className="stack"><Card><div className="card-heading"><div><h3>Your message</h3><p>Paste an SMS, WhatsApp message, or suspicious call script.</p></div><span className="small-tag">MAX 5,000</span></div><form onSubmit={analyze}><Field label="Message text" hint="No banking credentials, please. Never paste an actual OTP, UPI PIN, or password."><textarea value={message} onChange={e=>{setMessage(e.target.value);setResult(null);}} maxLength={5000} rows={9} placeholder="Paste an SMS, WhatsApp message, or suspicious call script here…"/></Field><div className="input-meta"><span>{message.length} / 5,000 characters</span><button type="button" className="text-button" onClick={()=>{setMessage(sample);setResult(null);}}>Load example message</button></div><div className="form-row"><Field label="Message language"><select value={language} onChange={e=>setLanguage(e.target.value)}><option>English</option><option>தமிழ்</option><option>Mixed</option></select></Field><div className="scan-buttons"><button className="button button-primary" disabled={busy}>{busy?<><Loader2 className="spin" size={16}/> Checking…</>:'Analyze Message'}</button><button type="button" className="button button-outline" onClick={()=>{setMessage('');setResult(null);}}>Clear</button></div></div></form></Card><Card className="how-card"><h3>A second look can help.</h3><div className="steps-inline"><span><b>01</b> Paste the message</span><ChevronRight/><span><b>02</b> Check the warning signs</span><ChevronRight/><span><b>03</b> Review next steps</span></div><p className="fine-print">This local demo uses transparent pattern checks. It cannot prove that a sender is genuine or a message is fraudulent.</p></Card></div>
+      <div className="stack"><Card className="result-placeholder">{result ? <><div className="card-heading"><div><h3>Scan result</h3><p>Rule-based local demo assessment · {language}</p></div><span className="small-tag">DEMO CHECK</span></div><StatusPanel risk={result.risk} title={result.verdict} reasons={matches.length ? matches.slice(0,3).map(m=>m.label+': '+m.explanation) : ['No configured keyword patterns matched. This does not mean the message is safe. Verify the sender independently.']}/><div className="matched-list"><h4>Detected indicators ({matches.length})</h4>{matches.length?matches.map(m=><div className="matched-item" key={m.id}><RiskBadge risk={m.severity}>{m.severity==='danger'?'HIGH CONCERN':'REVIEW'}</RiskBadge><div><strong>{m.label}</strong><p>{m.explanation}</p></div></div>):<p className="muted">No configured warning indicators were detected.</p>}</div><div className="original-message"><h4>Original message</h4><p>{highlightText(message, matches.flatMap(m=>m.id==='urgency'?['within 10 minutes','urgent','act now']:m.id==='credential'?['UPI PIN','OTP','password']:m.id==='refund'?['refund','scan this QR']:m.id==='authority'?['bank','police','RBI']:m.id==='fee'?['processing fee','advance fee']:m.id==='lure'?['congratulations','prize','lottery']:['https://','www.']))}</p></div><button className="button button-outline" onClick={()=>{setResult(null);}}>Scan another message</button></> : <div className="empty-result"><div className="empty-icon"><ScanLine size={28}/></div><h3>Your analysis will appear here</h3><p>Start with a message or try the example. We’ll explain the warning signs in plain language.</p><div className="empty-mini"><ShieldCheck size={17}/><span>Never use this result as proof that a sender is safe.</span></div></div>}</Card><Card className="indicator-card"><span className="eyebrow">WHAT THE SCAN LOOKS FOR</span><div className="indicator-pills"><span>Time pressure</span><span>Impersonation</span><span>Refund tricks</span><span>Credential requests</span><span>Upfront fees</span><span>Unknown links</span></div></Card></div></div>
+  </>;
+}
+
+function parseUpi(value: string) {
+  const raw = value.trim();
+  if (!raw) throw new Error('Paste a UPI payment link or upload a QR image.');
+  let url: URL;
+  try { url = new URL(raw); } catch { throw new Error('This does not look like a valid payment URI.'); }
+  if (url.protocol.toLowerCase() !== 'upi:') throw new Error('Only UPI payment URIs are supported in this demo.');
+  const p = url.searchParams;
+  const amountText = p.get('am');
+  const amount = amountText ? Number(amountText) : null;
+  if (amountText && (!Number.isFinite(amount) || amount! < 0)) throw new Error('The amount in this UPI URI is invalid.');
+  return { payee:p.get('pa')||'Not provided', name:p.get('pn')||'Not provided', amount, note:p.get('tn')||p.get('tr')||'Not provided', currency:p.get('cu')||'INR', mode:p.get('mode')||'Not specified', raw };
+}
+function QrPage({ state }: { state: AppState }) {
+  const [link,setLink]=useState(''); const [parsed,setParsed]=useState<ReturnType<typeof parseUpi>|null>(null); const [error,setError]=useState(''); const [fileName,setFileName]=useState(''); const [busy,setBusy]=useState(false); const fileRef=useRef<HTMLInputElement>(null);
+  const inspect = (value:string) => { try { const p=parseUpi(value);setParsed(p);setError('');state.addActivity({kind:'UPI link analysis',label:'Payment request inspected',risk:p.amount && p.amount>0 && /refund|cashback|receive/i.test(p.note+' '+p.name)?'danger':'caution'}); } catch(e) {setParsed(null);setError(e instanceof Error?e.message:'Could not inspect payment URI.');} };
+  const readFile = async (file?:File) => { if(!file)return;setFileName(file.name);setError('');setParsed(null); if(file.size>5*1024*1024){setError('File exceeds the 5 MB limit.');return;} if(!['image/png','image/jpeg'].includes(file.type)){setError('Please upload a PNG or JPG image.');return;} setBusy(true);try{const bitmap=await createImageBitmap(file);const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Could not read image.');ctx.drawImage(bitmap,0,0);bitmap.close();const image=ctx.getImageData(0,0,canvas.width,canvas.height);const decoded=jsQR(image.data,image.width,image.height);if(!decoded)throw new Error('No readable QR code found. Try a clearer image.');setLink(decoded.data);inspect(decoded.data);}catch(e){setError(e instanceof Error?e.message:'Could not decode this QR image.');}finally{setBusy(false);}};
+  const isRefundMislead = Boolean(parsed && /refund|cashback|receive|credit/i.test(parsed.note+' '+parsed.name) && parsed.amount && parsed.amount>0);
+  return <><PageTitle eyebrow="PAYMENT SAFETY" title="QR & Payment Link Analyzer" subtitle="Understand what a QR code or payment link is asking you to do before proceeding."/>
+    <div className="qr-layout"><div className="stack"><Card><div className="card-heading"><div><h3>Look before you pay</h3><p>Upload a QR image or paste a UPI payment link.</p></div><QrCode className="heading-icon"/></div><button className="upload-zone" onClick={()=>fileRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();void readFile(e.dataTransfer.files[0]);}}><div className="upload-icon"><Upload/></div><strong>{fileName||'Drag and drop a QR image here'}</strong><span>PNG or JPG · Up to 5 MB</span><b>Choose image</b></button><input ref={fileRef} type="file" accept="image/png,image/jpeg" hidden onChange={e=>void readFile(e.target.files?.[0])}/><div className="or-divider"><span>OR PASTE A PAYMENT LINK</span></div><form onSubmit={e=>{e.preventDefault();inspect(link);}}><Field label="UPI or payment link" hint="Paste the complete UPI link. Do not open it to copy it."><input value={link} onChange={e=>{setLink(e.target.value);setParsed(null);}} placeholder="upi://pay?pa=…"/></Field><div className="button-row"><button className="button button-primary" disabled={busy}>{busy?<><Loader2 size={16} className="spin"/> Reading image…</>:'Analyze payment request'}</button><button type="button" className="button button-outline" onClick={()=>{setLink('');setParsed(null);setError('');setFileName('');}}>Clear</button></div></form>{error&&<div className="inline-error"><AlertCircle size={16}/>{error}</div>}</Card><Card className="info-card"><h3>Know what’s in the request</h3><ul className="check-list"><li><CheckCircle2/>Payment address</li><li><CheckCircle2/>Display name and amount</li><li><CheckCircle2/>Payment note / description</li><li><CheckCircle2/>Whether the request asks you to pay</li></ul><p className="fine-print">A decoded name is not proof of a person's real-world identity.</p></Card></div>
+    <div className="stack">{parsed ? <Card><div className="card-heading"><div><h3>Payment request details</h3><p>Decoded locally from the URI / QR content</p></div><span className="small-tag">DECODED</span></div><div className="payment-summary"><span className="eyebrow">{isRefundMislead?'REVIEW THIS REQUEST':'ILLUSTRATIVE PAYMENT DETAILS'}</span><h2>{parsed.amount!==null?`₹${parsed.amount.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Amount not specified'}</h2><span>Requested amount</span></div><div className="detail-list"><Detail label="Payee display name" value={parsed.name}/><Detail label="UPI address" value={parsed.payee}/><Detail label="Payment note" value={parsed.note}/><Detail label="Currency" value={parsed.currency}/><Detail label="Mode" value={parsed.mode}/></div><div className={`direction-box ${isRefundMislead?'danger-box':''}`}><div className="direction-icon"><ArrowUpRight/></div><div><strong>OUT → SENDING MONEY</strong><p>Your account → {parsed.name}. This URI represents a payment request, not a completed transfer.</p></div></div>{isRefundMislead&&<div className="inline-error"><AlertTriangle size={17}/>The note or name mentions a refund / receiving money, but the decoded UPI request asks you to send money. Do not approve it unless independently verified.</div>}<div className="pin-reminder"><ShieldAlert size={18}/><span>A UPI PIN authorizes money leaving your account. It is not needed to receive money.</span></div><p className="fine-print">This tool only decodes supplied URI fields. It does not verify payee identity, account ownership, or recipient trustworthiness.</p></Card> : <Card className="empty-result qr-empty"><div className="empty-icon"><QrCode size={28}/></div><h3>Your payment breakdown will appear here</h3><p>Upload a QR code or paste a UPI link to inspect the fields before taking action.</p><div className="demo-example"><span className="eyebrow">TRY AN EXAMPLE</span><code>upi://pay?pa=refund-help@demobank&amp;pn=Refund%20Support&amp;am=2000&amp;tn=Refund%20processing</code><button className="text-button" onClick={()=>setLink('upi://pay?pa=refund-help@demobank&pn=Refund%20Support&am=2000&tn=Refund%20processing')}>Load sample request</button><button className="button button-outline button-full" onClick={()=>inspect('upi://pay?pa=refund-help@demobank&pn=Refund%20Support&am=2000&tn=Refund%20processing')}>Analyze sample</button></div></Card>}<Card className="pin-reminder"><ShieldCheck size={20}/><div><strong>Remember</strong><p>Scanning a QR code does not prove who will receive your money. Always verify independently.</p></div></Card></div></div>
+  </>;
+}
+function Detail({label,value}:{label:string;value:string}){return <div className="detail-row"><span>{label}</span><strong>{value}</strong></div>;}
+
+function GuidePage() {
+ const steps=[['Stop','Do not rush because someone is pressuring you.','Pause before sending money or sharing information.'],['Check','Look for unusual links, payment requests, and suspicious wording.','Notice requests for PINs, OTPs, upfront fees, or urgent action.'],['Verify','Contact the organization using its official website or known phone number.','Do not rely on contact details supplied in a suspicious message.'],['Protect','Never share OTPs, UPI PINs, passwords, or banking details.','A legitimate support agent does not need your secret credentials.'],['Report','Contact your bank and the appropriate cybercrime reporting service.','Keep transaction IDs, screenshots, and messages as evidence.']];
+ const scams=[['Fake bank or KYC alerts','Threats to block your account unless you act now.'],['Fake refund messages','Requests to scan a QR code to receive money.'],['Police or government impersonation','Threats of arrest and demands for immediate payment.'],['Fake job and prize offers','A fee before you can claim a job, reward, or prize.'],['Urgent payment demands','Pressure to pay before you can check the details.']];
+ return <><PageTitle eyebrow="YOUR 5-STEP SAFETY CHECK" title="Pause. Think. Verify." subtitle="Take a moment before sending money or sharing information."/><Card className="guide-steps">{steps.map((s,i)=><div className="guide-step" key={s[0]}><div className="step-number">0{i+1}</div><div className="step-line"/><div><h3>{s[0]}</h3><p>{s[1]}</p><small>{s[2]}</small></div></div>)}</Card><Card className="verify-callout"><ShieldCheck size={26}/><div><h3>Verify independently.</h3><p>Open the official app yourself, type the website address, or use a phone number you already know. Do not use a number or link sent in a suspicious message.</p></div></Card><div className="section-heading"><h2>Common scam warning signs</h2><span>Examples to look out for</span></div><div className="scam-grid">{scams.map(s=><Card className="scam-card" key={s[0]}><AlertTriangle/><h3>{s[0]}</h3><p>{s[1]}</p></Card>)}</div><Card className="guide-bottom"><h3>Already sent money?</h3><p>Contact your bank immediately and report the incident as soon as possible.</p><Link className="button button-primary" to="/emergency">Open Emergency Help <ArrowRight size={16}/></Link></Card></>;
+}
+function EmergencyPage() {
+ const actions=[['Contact your bank immediately','Call your bank or payment service provider using an official number. Ask them to report the fraudulent transaction and secure your account.'],['Call India’s cybercrime helpline','1930 — report financial cyber fraud as soon as possible.'],['Report through the official portal','Use https://cybercrime.gov.in to submit the incident details.'],['Save the evidence','Keep transaction IDs / UTR, amount, date, screenshots, phone numbers, and messages.'],['Do not send more money','Avoid anyone who promises to recover funds for an additional fee.']];
+ const [incident,setIncident]=useState({date:'',amount:'',utr:'',bank:'',description:''});
+ const summary=`CheckFirst incident summary (user-prepared)\nDate/time: ${incident.date||'Not provided'}\nAmount: ${incident.amount||'Not provided'}\nTransaction ID / UTR: ${incident.utr||'Not provided'}\nBank / payment app: ${incident.bank||'Not provided'}\nDescription: ${incident.description||'Not provided'}\n\nDo not include PINs, OTPs, passwords, or full card details.`;
+ return <><PageTitle eyebrow="EMERGENCY SUPPORT / INDIA" title="Need Help? Act Quickly." subtitle="If you have already lost money, contact your bank and report the incident as soon as possible."/><Card className="emergency-banner"><div className="emergency-symbol"><LifeBuoy size={30}/></div><div><span className="eyebrow">TAKE ONE STEP AT A TIME</span><h2>Reporting quickly matters.</h2><p>Contact your bank or payment service provider immediately.</p></div></Card><div className="emergency-grid"><div className="stack"><Card><h3>What to do right now</h3><div className="emergency-steps">{actions.map((a,i)=><div className="emergency-step" key={a[0]}><span>{i+1}</span><div><strong>{a[0]}</strong><p>{a[1]}</p></div></div>)}</div></Card><div className="emergency-contacts"><a href="tel:1930" className="contact-card"><span>CYBERCRIME HELPLINE</span><strong>1930</strong><b>Call helpline <ArrowRight size={14}/></b></a><a href="https://cybercrime.gov.in" target="_blank" rel="noreferrer" className="contact-card portal"><span>OFFICIAL REPORTING PORTAL</span><strong>cybercrime.gov.in</strong><b>Open official portal <ArrowUpRight size={14}/></b></a></div><p className="fine-print">CheckFirst cannot recover funds, reverse a payment, or block a transaction. Follow instructions from your bank and official authorities.</p></div><Card><h3>Prepare an incident summary</h3><p className="muted">Use this checklist to organize details before contacting your bank or reporting. This summary is generated in your browser only.</p><form onSubmit={e=>{e.preventDefault();navigator.clipboard?.writeText(summary).then(()=>alert('Incident summary copied. Do not share passwords, PINs, or OTPs.')).catch(()=>alert('Clipboard is unavailable in this browser. Select and copy the summary below.'));}}><Field label="Date and time"><input type="datetime-local" value={incident.date} onChange={e=>setIncident(p=>({...p,date:e.target.value}))}/></Field><Field label="Amount involved (₹)"><input inputMode="decimal" value={incident.amount} onChange={e=>setIncident(p=>({...p,amount:e.target.value}))} placeholder="e.g. 2,000"/></Field><Field label="Transaction ID / UTR"><input value={incident.utr} onChange={e=>setIncident(p=>({...p,utr:e.target.value}))} placeholder="Transaction reference, if available"/></Field><Field label="Bank / payment app"><input value={incident.bank} onChange={e=>setIncident(p=>({...p,bank:e.target.value}))} placeholder="e.g. Bank name or UPI app"/></Field><Field label="What happened?"><textarea rows={4} value={incident.description} onChange={e=>setIncident(p=>({...p,description:e.target.value}))} placeholder="Briefly describe the incident…"/></Field><button className="button button-primary button-full">Copy incident summary <Clipboard size={16}/></button><div className="summary-preview"><strong>Preview</strong><pre>{summary}</pre></div></form><p className="fine-print">Never enter your UPI PIN, OTP, banking password, or full card details here.</p></Card></div></>;
+}
+
+function LoanCalculatorPage({state}:{state:AppState}) {
+ const [received,setReceived]=useState('10000');const [fees,setFees]=useState('500');const [repayment,setRepayment]=useState('11200');const [tenure,setTenure]=useState('30');const [unit,setUnit]=useState('Days');const [calculated,setCalculated]=useState(true);const [error,setError]=useState('');
+ const result=useMemo(()=>{const r=Number(received),f=Number(fees),p=Number(repayment),t=Number(tenure);if(![r,f,p,t].every(Number.isFinite)||r<=0||p<0||f<0||t<=0)return null;const days=unit==='Days'?t:unit==='Months'?t*30.4375:t*365.25;if(days<=0)return null;const cost=p-r;return {received:r,fees:f,repayment:p,cost,rate:cost/r*365/days*100,days};},[received,fees,repayment,tenure,unit]);
+ const calculate=(e:FormEvent)=>{e.preventDefault();if(!result||result.repayment<=0||result.cost<0){setError('Enter valid amounts. Total repayment should not be lower than the amount received.');setCalculated(false);return;}setError('');setCalculated(true);state.addActivity({kind:'Loan cost calculation',label:'Loan cost estimate',risk:result.rate>100?'danger':result.rate>36?'caution':'clear'});};
+ const money=(v:number)=>`₹${v.toLocaleString('en-IN',{maximumFractionDigits:2})}`;
+ return <><PageTitle eyebrow="BORROW WITH CLARITY" title="Loan Cost Calculator" subtitle="Understand how much a loan really costs before accepting it."/><div className="loan-layout"><div className="stack"><Card><div className="card-heading"><div><h3>Enter the loan details</h3><p>Use the net amount actually credited to you.</p></div><span className="small-tag">DEMO VALUES LOADED</span></div><form onSubmit={calculate}><Field label="Loan amount received (₹)" hint="The net amount actually credited to you."><input type="number" min="0.01" step="0.01" value={received} onChange={e=>{setReceived(e.target.value);setCalculated(false);}} required/></Field><Field label="Upfront fees or deductions (₹)" hint="Already deducted. Do not subtract this again from the net amount received."><input type="number" min="0" step="0.01" value={fees} onChange={e=>{setFees(e.target.value);setCalculated(false);}} required/></Field><Field label="Total repayment amount (₹)" hint="Include all payments you must make over the loan tenure."><input type="number" min="0" step="0.01" value={repayment} onChange={e=>{setRepayment(e.target.value);setCalculated(false);}} required/></Field><div className="form-row"><Field label="Loan tenure"><input type="number" min="0.01" step="0.01" value={tenure} onChange={e=>{setTenure(e.target.value);setCalculated(false);}} required/></Field><Field label="Tenure unit"><select value={unit} onChange={e=>{setUnit(e.target.value);setCalculated(false);}}><option>Days</option><option>Months</option><option>Years</option></select></Field></div>{error&&<div className="inline-error"><AlertCircle size={16}/>{error}</div>}<button className="button button-primary button-full">Calculate true cost <ArrowRight size={16}/></button></form></Card><Card className="info-card"><h3>How to use this calculator</h3><p>Enter the money you actually receive, all fees already deducted, the complete repayment amount, and the loan tenure. The fee field is shown separately for transparency; it is not deducted twice.</p></Card></div>
+ <div className="stack">{calculated&&result&&result.cost>=0?<><Card className="loan-result"><span className="eyebrow">ESTIMATED SIMPLE ANNUALIZED RATE</span><div className="rate-number">{result.rate.toFixed(1)}<small>%</small></div><span className="small-tag">Not a regulatory APR</span><div className="loan-metrics"><div><span>Actual amount received</span><strong>{money(result.received)}</strong></div><div><span>Total repayment</span><strong>{money(result.repayment)}</strong></div><div><span>Total borrowing cost</span><strong className="text-red">{money(result.cost)}</strong></div></div><div className="loan-callout">For every ₹100 you receive, you repay ₹{(result.repayment/result.received*100).toFixed(2)}.</div></Card><Card className="chart-card"><div className="card-heading"><div><h3>Loan cost comparison</h3><p>Amounts in ₹ · common baseline</p></div></div><div className="cost-bars">{[{label:'Actual amount received',value:result.received,color:'#087f78'},{label:'Total repayment',value:result.repayment,color:'#102d43'},{label:'Total borrowing cost',value:result.cost,color:'#b72d37'}].map(v=><div className="cost-bar" key={v.label}><div><span>{v.label}</span><strong>{money(v.value)}</strong></div><div className="progress-track"><div className="progress-fill" style={{width:`${Math.min(100,v.value/Math.max(result.repayment,1)*100)}%`,background:v.color}}/></div></div>)}</div><p className="fine-print">The fee is already reflected in the net amount received. These bars are comparison values, not additive components.</p></Card><Card><h3>How it’s calculated</h3><div className="formula-box">Borrowing cost = Total repayment − Actual amount received<br/>Simple annualized estimate = (Borrowing cost ÷ Actual amount received) × (365 ÷ Tenure in days) × 100</div><p className="fine-print">Uses a simple annualized estimate for one repayment. It does not account for every cash-flow timing detail and is not a regulatory APR or a substitute for the lender's Key Fact Statement.</p></Card></>:<Card className="empty-result"><AlertCircle/><h3>Enter valid loan details</h3><p>Total repayment must be at least equal to the amount received. Check the inputs and calculate again.</p></Card>}</div></div></>;
+}
+
+const riskQuestions=[
+ 'Is a large fee deducted before you receive the loan?',
+ 'Is the repayment period unusually short?',
+ 'Is the total repayment much higher than the amount received?',
+ 'Is the lender asking for unnecessary phone permissions?',
+ 'Is the lender pressuring you to accept immediately?',
+ 'Are the interest rate, fees, and repayment terms unclear?',
+];
+type Answer='yes'|'no'|'unsure';
+function LoanRiskPage({state}:{state:AppState}) {
+ const [answers,setAnswers]=useState<Record<number,Answer|undefined>>({});const [submitted,setSubmitted]=useState(false);
+ const count=Object.values(answers).filter(Boolean).length;const flagged=riskQuestions.map((q,i)=>({q,a:answers[i],i})).filter(x=>x.a==='yes'||x.a==='unsure');const risk:Risk=flagged.length>=3?'danger':flagged.length>0?'caution':'clear';
+ return <><PageTitle eyebrow="BORROW WITH CAUTION" title="Loan Risk Checker" subtitle="Check the terms of a loan offer before you agree."/><div className="risk-layout"><div className="stack"><Card><div className="card-heading"><div><h3>A few questions can reveal a lot.</h3><p>Choose Yes, No, or Not sure for each question. If you don't know, choose Not sure.</p></div><span className="small-tag">6 CHECKS</span></div><div className="question-list">{riskQuestions.map((q,i)=><div className="question" key={q}><div className="question-number">0{i+1}</div><div className="question-content"><strong>{q}</strong><div className="answer-group" role="group" aria-label={q}>{(['yes','no','unsure'] as Answer[]).map(v=><button key={v} className={`answer-option ${answers[i]===v?'selected':''} ${answers[i]===v?`selected-${v}`:''}`} onClick={()=>{setAnswers(p=>({...p,[i]:v}));setSubmitted(false);}} aria-pressed={answers[i]===v}>{v==='yes'?'Yes':v==='no'?'No':'Not sure'}</button>)}</div></div></div>)}</div><button className="button button-primary button-full" disabled={count!==6} onClick={()=>{setSubmitted(true);state.addActivity({kind:'Loan risk check',label:'Loan offer assessment',risk});}}>Check loan offer ({count}/6 answered)</button><p className="fine-print">A legitimate lender should explain total repayment, fees, permissions, and terms without pressuring you.</p></Card><Card className="info-card"><h3>You don’t have to decide today.</h3><p>Pause if an offer asks for unnecessary permissions, upfront payments, or immediate acceptance. Verify the lender and written terms independently.</p></Card></div>
+ <div className="stack">{submitted?<><StatusPanel risk={risk} title={risk==='danger'?'Multiple warning signs identified':risk==='caution'?'Some details need a closer look':'No answers flagged in this checklist'} reasons={flagged.length?flagged.map(x=>`${x.q} — ${x.a==='yes'?'You answered Yes.':'You are unsure; verify this before proceeding.'}`):['No Yes or Not sure answers were selected. This checklist cannot establish that a lender is legitimate.']} action={`${flagged.length} of 6 indicators require review.`}/><Card><h3>Six-indicator assessment</h3><div className="six-bars">{riskQuestions.map((q,i)=><div key={q} className="six-bar-row"><span>{i+1}. {['Upfront fee deduction','Short repayment period','High total repayment','Unnecessary permissions','Pressure to accept','Unclear loan terms'][i]}</span><RiskBadge risk={answers[i]==='yes'?'danger':answers[i]==='unsure'?'caution':'clear'}>{answers[i]==='yes'?'Flagged':answers[i]==='unsure'?'Check':'Not flagged'}</RiskBadge></div>)}</div><p className="fine-print">Checklist count only — not a financial risk score or a guarantee of legitimacy.</p><button className="button button-outline button-full" onClick={()=>{setAnswers({});setSubmitted(false);}}>Review answers again</button></Card></>:<Card className="empty-result"><div className="empty-icon"><ShieldAlert size={28}/></div><h3>Your assessment will appear here</h3><p>Answer all six questions to see which terms deserve a closer look.</p><div className="progress-track"><div className="progress-fill" style={{width:`${count/6*100}%`}}/></div><span className="muted">{count} of 6 answered</span></Card>}<Card className="pin-reminder"><ShieldCheck size={19}/><div><strong>Important</strong><p>CheckFirst highlights potential warning signs. It does not certify a lender or guarantee that a loan offer is legitimate.</p></div></Card></div></div></>;
+}
+
+function SettingsPage({state}:{state:AppState}) {
+ const toggle=(key:keyof Prefs,label:string,description:string)=><div className="setting-row"><div><strong>{label}</strong><span>{description}</span></div><button role="switch" aria-checked={Boolean(state.prefs[key])} className={`switch ${state.prefs[key]?'on':''}`} onClick={()=>state.setPrefs(p=>({...p,[key]:!p[key]}))}><i/></button></div>;
+ return <><PageTitle eyebrow="MAKE CHECKFIRST WORK FOR YOU" title="A simpler experience." subtitle="Privacy and accessibility on your terms."/><div className="settings-layout"><div className="stack"><Card><h3>Language & accessibility</h3><div className="setting-row"><div><strong>Language preference</strong><span>Choose the interface language.</span></div><select className="compact-select" value={state.prefs.tamil?'ta':'en'} onChange={e=>state.setPrefs(p=>({...p,tamil:e.target.value==='ta'}))}><option value="en">English</option><option value="ta">தமிழ்</option></select></div>{toggle('simple','Simple Mode','Use shorter labels and simplified guidance.')}{toggle('large','Larger text','Increase text size for easier reading.')}</Card><Card><h3>Notifications</h3>{toggle('safetyTips','Safety tips','Occasional educational reminders.')}{toggle('completionAlerts','Scan completion alerts','A notification when your current check is ready. This demo does not send push notifications.')}</Card><Card><h3>Privacy preferences</h3>{toggle('saveHistory','Optional local scan history','Off by default. Save only check type, result category, and time on this device. Raw message and QR contents are never saved.')}{state.prefs.saveHistory&&<div className="privacy-active"><CheckCircle2 size={16}/> Local history is enabled. You can clear it here at any time.<button className="text-button" onClick={()=>{localStorage.removeItem('checkfirst-history');state.setNotice('Saved local history cleared.');}}>Clear history</button></div>}</Card></div><div className="stack"><Card className="privacy-promise"><div className="privacy-illustration"><LockKeyhole size={26}/></div><h3>Your financial safety comes first.</h3><p>CheckFirst never asks for your UPI PIN, OTP, or banking password.</p></Card><Card><h3>What gets processed?</h3><p className="muted">In this frontend-only demo, message checks run in your browser using simple pattern rules, QR decoding happens locally, and calculator/risk-checker computations happen locally.</p><p className="muted">When a backend is connected, review its privacy policy before submitting personal information. Send only the minimum data required for a check.</p><div className="policy-lines"><span><CheckCircle2/> Messages are not saved automatically.</span><span><CheckCircle2/> Optional history is local and off by default.</span><span><CheckCircle2/> No PINs, OTPs, or passwords should ever be entered.</span></div></Card><Card><h3>About this prototype</h3><p className="muted">CheckFirst is an illustrative financial-safety prototype. Warnings are guidance, not guarantees, financial advice, or verification of any person, payment recipient, or lender.</p><span className="small-tag">FRONTEND DEMO BUILD</span></Card></div></div></>;
+}
+
+function NotFound(){return <Card className="empty-result"><h2>Page not found</h2><p>The page you are looking for does not exist.</p><Link to="/" className="button button-primary">Return to dashboard</Link></Card>;}
+export default function App() {
+ const state=useAppState();
+ return <Layout state={state}><Routes>
+   <Route path="/" element={<Dashboard state={state}/>}/>
+   <Route path="/scanner" element={<ScannerPage state={state}/>}/>
+   <Route path="/qr-analyzer" element={<QrPage state={state}/>}/>
+   <Route path="/guide" element={<GuidePage/>}/>
+   <Route path="/emergency" element={<EmergencyPage/>}/>
+   <Route path="/loan-calculator" element={<LoanCalculatorPage state={state}/>}/>
+   <Route path="/loan-risk" element={<LoanRiskPage state={state}/>}/>
+   <Route path="/settings" element={<SettingsPage state={state}/>}/>
+   <Route path="*" element={<NotFound/>}/>
+ </Routes></Layout>;
+}
+=== END FILE: checkfirst-frontend/src/App.tsx ===
+
+=== FILE: checkfirst-frontend/src/api.ts ===
+/**
+ * Typed API helpers for the CheckFirst backend.
+ * The UI currently runs in local demo mode. Google AI Studio should wire these
+ * functions into the scanner, QR analyzer, calculator, risk checker and dashboard.
+ */
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
+export type RiskLevel = 'danger' | 'caution' | 'clear';
+export type ApiError = { error: string; code?: string; requestId?: string };
+export type MessageScanRequest = { text: string; language: 'en' | 'ta' | 'mixed' };
+export type MessageScanResponse = {
+  risk: RiskLevel;
+  summary: string;
+  indicators: Array<{ code: string; label: string; severity: 'high' | 'medium' | 'low'; evidence: string; explanation: string }>;
+  recommendedActions: string[];
+  limitations: string[];
+  engine: { rulesVersion: string; modelUsed: boolean };
+};
+export type UpiScanRequest = { payeeAddress?: string; displayName?: string; amount?: number | null; note?: string; currency?: string; rawUri?: string };
+export type UpiScanResponse = { risk: RiskLevel; direction: 'outgoing_payment' | 'unknown'; decoded: { payeeAddress?: string; displayName?: string; amount?: number | null; note?: string; currency?: string }; indicators: Array<{ code: string; label: string; explanation: string }>; limitations: string[] };
+export type LoanCalculateRequest = { netAmountReceived: number; upfrontFees: number; totalRepayment: number; tenureValue: number; tenureUnit: 'days' | 'months' | 'years' };
+export type LoanCalculateResponse = { netAmountReceived: number; upfrontFees: number; totalRepayment: number; borrowingCost: number; tenureDays: number; simpleAnnualizedPercent: number; isEstimate: true; explanation: string[] };
+export type LoanAssessRequest = { answers: Array<'yes' | 'no' | 'unsure'>; language: 'en' | 'ta' | 'mixed' };
+export type LoanAssessResponse = { risk: RiskLevel; flaggedCount: number; items: Array<{ code: string; answer: 'yes' | 'no' | 'unsure'; flagged: boolean; explanation: string }>; nextSteps: string[]; limitations: string[] };
+export type DashboardSummary = { periodLabel: string; totals: { all: number; danger: number; caution: number; clear: number }; daily: Array<{ day: string; checks: number }>; indicators: Array<{ label: string; count: number }>; source: 'real_opt_in_aggregates' | 'illustrative_demo' };
+
+export class CheckFirstApiError extends Error {
+  status: number;
+  code?: string;
+  requestId?: string;
+  constructor(message: string, status: number, code?: string, requestId?: string) {
+    super(message); this.name = 'CheckFirstApiError'; this.status = status; this.code = code; this.requestId = requestId;
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!API_BASE) throw new CheckFirstApiError('Backend is not configured. Running in local demo mode.', 0, 'BACKEND_NOT_CONFIGURED');
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+      credentials: 'include',
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const apiError = body as ApiError;
+      throw new CheckFirstApiError(apiError.error || 'The request could not be completed.', response.status, apiError.code, apiError.requestId);
+    }
+    return body as T;
+  } catch (error) {
+    if (error instanceof CheckFirstApiError) throw error;
+    if (error instanceof DOMException && error.name === 'AbortError') throw new CheckFirstApiError('The request timed out. Please try again.', 408, 'TIMEOUT');
+    throw new CheckFirstApiError('Cannot reach the CheckFirst service. Check your connection and try again.', 0, 'NETWORK_ERROR');
+  } finally { window.clearTimeout(timeout); }
+}
+
+export const checkfirstApi = {
+  configured: Boolean(API_BASE),
+  scanMessage: (payload: MessageScanRequest) => request<MessageScanResponse>('/api/v1/scan/message', { method: 'POST', body: JSON.stringify(payload) }),
+  scanUpi: (payload: UpiScanRequest) => request<UpiScanResponse>('/api/v1/scan/upi', { method: 'POST', body: JSON.stringify(payload) }),
+  calculateLoan: (payload: LoanCalculateRequest) => request<LoanCalculateResponse>('/api/v1/loan/calculate', { method: 'POST', body: JSON.stringify(payload) }),
+  assessLoan: (payload: LoanAssessRequest) => request<LoanAssessResponse>('/api/v1/loan/assess', { method: 'POST', body: JSON.stringify(payload) }),
+  dashboardSummary: () => request<DashboardSummary>('/api/v1/dashboard/summary'),
+  getHistory: () => request<{ items: Array<{ id: string; type: string; risk: RiskLevel; createdAt: string }> }>('/api/v1/history'),
+  clearHistory: () => request<{ success: boolean }>('/api/v1/history', { method: 'DELETE' }),
+};
+=== END FILE: checkfirst-frontend/src/api.ts ===
+
+=== FILE: checkfirst-frontend/src/styles.css ===
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#142f43;background:#f5f7f9;font-synthesis:none;text-rendering:optimizeLegibility;font-smooth:always;font-weight:400;--navy:#102d43;--teal:#087f78;--mint:#e8f5f1;--canvas:#f5f7f9;--white:#fff;--ink:#142f43;--muted:#5c6e7b;--line:#dfe7ec;--red:#b72d37;--red-bg:#fff0f0;--amber:#935b10;--amber-bg:#fff6e8;--green:#087f78;--green-bg:#e8f5f1;--shadow:0 2px 9px rgba(15,46,66,.045)}*{box-sizing:border-box}body{margin:0;min-width:320px}button,input,textarea,select{font:inherit}button,a{-webkit-tap-highlight-color:transparent}button{cursor:pointer}a{color:inherit;text-decoration:none}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid rgba(8,127,120,.28);outline-offset:2px}.app-shell{min-height:100vh;display:flex}.sidebar{width:268px;background:#fff;border-right:1px solid var(--line);padding:30px 24px 20px;display:flex;flex-direction:column;flex-shrink:0;min-height:100vh;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:20}.brand{display:flex;align-items:center;gap:10px;position:relative}.brand-mark{width:31px;height:31px;border-radius:9px;background:var(--mint);color:var(--teal);display:grid;place-items:center}.brand strong{display:block;font-size:24px;letter-spacing:-1.1px;color:var(--navy)}.brand small{display:block;font-size:11px;color:var(--muted);margin-top:2px}.nav-list{display:flex;flex-direction:column;gap:5px;margin-top:46px}.nav-link{display:flex;align-items:center;gap:12px;padding:12px;border-radius:8px;color:var(--ink);font-size:13px;font-weight:500;min-height:44px;transition:background .18s,color .18s}.nav-link svg{flex-shrink:0;color:#627582}.nav-link:hover{background:#f4f7f9}.nav-link.active{background:var(--mint);color:var(--teal);font-weight:700}.nav-link.active svg{color:var(--teal)}.nav-group-label{font-size:10px;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:22px 0 8px 12px}.urgent-card{margin-top:30px;background:#f4f7fa;padding:17px;border-radius:12px;display:flex;flex-direction:column;gap:9px}.urgent-card strong{font-size:14px;color:var(--navy)}.urgent-card span{font-size:12px;line-height:1.55;color:var(--muted)}.urgent-card b{font-size:11px;color:var(--teal);display:flex;align-items:center;gap:5px}.sidebar-foot{margin-top:auto;padding-top:28px;color:#87959e;font-size:10px;letter-spacing:.05em;display:flex;align-items:center;gap:7px}.main-area{min-width:0;flex:1}.topbar{height:88px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 40px;gap:22px;position:sticky;top:0;z-index:10}.crumb{display:flex;align-items:center;gap:12px;min-width:0}.crumb>div{display:flex;flex-direction:column;gap:4px}.crumb span{font-size:11px;color:var(--muted)}.crumb strong{font-size:17px;font-weight:650}.top-actions{display:flex;align-items:center;gap:20px}.language-button,.simple-toggle,.profile-button{border:0;background:transparent;color:var(--ink);display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap}.language-button{background:var(--canvas);padding:10px 12px;border-radius:8px}.simple-toggle{color:var(--muted)}.simple-toggle>span{width:31px;height:18px;border-radius:20px;background:#d4dde2;position:relative;display:inline-block}.simple-toggle>span:after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;background:white;border-radius:50%;transition:transform .18s}.simple-toggle.on>span{background:var(--teal)}.simple-toggle.on>span:after{transform:translateX(13px)}.profile-wrap{position:relative}.profile-button{gap:8px}.avatar{width:27px;height:27px;background:#e9f0f3;border-radius:50%;display:grid;place-items:center;color:var(--navy);font-weight:700}.profile-menu{position:absolute;right:0;top:39px;width:200px;background:white;border:1px solid var(--line);border-radius:10px;padding:8px;box-shadow:0 12px 32px rgba(15,46,66,.13);display:flex;flex-direction:column;z-index:30}.profile-meta{padding:9px 10px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:4px}.profile-meta strong{font-size:12px}.profile-meta small{font-size:10px;color:var(--muted)}.profile-menu a,.profile-menu button{text-align:left;padding:10px;border:0;background:none;font-size:12px;border-radius:7px;color:var(--ink)}.profile-menu a:hover,.profile-menu button:hover{background:var(--canvas)}.page-content{max-width:1440px;padding:32px 40px 48px;margin:0 auto}.footer{background:white;border-top:1px solid var(--line);padding:24px 40px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}.footer strong{font-size:10px;letter-spacing:.07em;color:var(--muted)}.footer span{font-size:11px;color:#83919a}.footer-disclaimer{margin-left:auto}.page-title{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin:3px 0 27px}.page-title h1{font-size:29px;letter-spacing:-.8px;color:var(--navy);margin:5px 0 7px;line-height:1.2}.page-title p{margin:0;color:var(--muted);font-size:14px;line-height:1.55}.eyebrow{display:block;color:var(--teal);font-size:10px;font-weight:750;letter-spacing:.08em}.eyebrow.light{color:#a9dcd3}.title-actions{display:flex;align-items:center;gap:10px}.privacy-chip,.small-tag,.chart-tag{display:inline-flex;align-items:center;gap:6px;background:#eef5f4;color:#39756e;padding:7px 10px;border-radius:7px;font-size:10px;font-weight:650;white-space:nowrap}.small-tag{background:#f2f5f7;color:#60717d;letter-spacing:.04em}.card{background:#fff;border:1px solid var(--line);border-radius:13px;padding:23px;box-shadow:var(--shadow);min-width:0}.card h3{font-size:16px;color:var(--navy);margin:0 0 7px;font-weight:700;letter-spacing:-.2px}.card p{line-height:1.55}.card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}.card-heading h3{margin-bottom:5px}.card-heading p{font-size:11px;color:var(--muted);margin:0}.section-heading{display:flex;align-items:baseline;justify-content:space-between;gap:15px;margin:28px 0 16px}.section-heading h2{font-size:21px;color:var(--navy);margin:0;letter-spacing:-.45px}.section-heading>span{color:var(--muted);font-size:11px}.hero{background:var(--navy);border-radius:17px;padding:31px 34px;color:white;display:flex;align-items:center;gap:24px;justify-content:space-between;min-height:240px}.hero-copy{max-width:640px}.hero h1{font-size:35px;letter-spacing:-1.2px;margin:12px 0 9px}.hero-copy>p{font-size:16px;color:#d5e3eb;margin:0 0 22px}.hero-actions{display:flex;gap:11px;flex-wrap:wrap}.button{border:1px solid transparent;border-radius:8px;display:inline-flex;justify-content:center;align-items:center;gap:9px;padding:12px 17px;font-size:12px;font-weight:700;min-height:43px;transition:filter .16s,transform .16s;background:white;color:var(--ink)}.button:hover{filter:brightness(.97);transform:translateY(-1px)}.button:disabled{opacity:.45;cursor:not-allowed;transform:none}.button-primary{background:var(--teal);color:#fff}.button-light{background:#fff;color:var(--navy)}.button-outline{border-color:var(--line);background:#fff;color:var(--ink)}.button-full{width:100%}.hero-promise{background:#1c3d52;border-radius:13px;padding:22px 25px;width:285px;flex-shrink:0}.promise-check{width:36px;height:36px;border-radius:50%;background:#25584f;color:#83d8bf;display:grid;place-items:center}.hero-promise h2{font-size:22px;line-height:1.3;margin:13px 0}.hero-promise p{font-size:12px;color:#d5e3eb;margin:0}.quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.quick-card{background:#fff;border:1px solid var(--line);border-radius:13px;padding:22px 23px;box-shadow:var(--shadow);min-height:173px;display:flex;flex-direction:column;transition:transform .18s,border-color .18s}.quick-card:hover{transform:translateY(-2px);border-color:#acd3cc}.quick-top{display:flex;justify-content:space-between;align-items:center;color:var(--teal)}.quick-top svg{color:#6b9891}.quick-card h3{font-size:18px;color:var(--navy);margin:18px 0 7px}.quick-card p{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 17px;max-width:470px}.quick-card>b{margin-top:auto;color:var(--teal);font-size:12px;display:flex;align-items:center;gap:6px}.safety-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:16px;margin-top:20px}.safety-card{display:flex;gap:18px}.safety-icon{height:38px;width:38px;flex-shrink:0;border-radius:10px;background:var(--mint);color:var(--teal);display:grid;place-items:center}.safety-card h3{font-size:16px}.credential-warning{background:#fff5e9;border:1px solid #f5e6cf;border-radius:8px;color:#80521a;padding:12px 13px;font-size:12px;font-weight:650;margin:14px 0}.safety-card h4{font-size:12px;margin:14px 0 8px;color:var(--navy)}.compact-list{margin:0;padding-left:18px;color:var(--muted);font-size:11px;line-height:1.8}.tip-card{background:#edf6f3;border-color:#dcece7}.tip-card h3{font-size:20px;margin:13px 0 9px;line-height:1.35}.tip-card p{font-size:12px;color:#526d6a;margin:0 0 14px}.text-link{color:var(--teal);font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:6px}.analytics-section{margin-top:8px}.stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.stat-card{padding:17px;display:grid;grid-template-columns:1fr auto;gap:7px 10px;align-items:center}.stat-icon{grid-column:2;grid-row:1/4;width:32px;height:32px;border-radius:9px;background:#eff5f4;color:var(--teal);display:grid;place-items:center}.stat-icon.red{background:#fff0f0;color:var(--red)}.stat-icon.amber{background:#fff6e8;color:#a56e17}.stat-icon.green{background:#e8f5f1;color:var(--teal)}.stat-card>span{font-size:10px;color:var(--muted);line-height:1.3}.stat-card>strong{font-size:27px;color:var(--navy);letter-spacing:-.8px}.stat-card>small{font-size:9px;color:#8a969e}.demo-note{display:flex;align-items:flex-start;gap:7px;color:#687984;font-size:10px;margin:12px 2px 16px}.demo-note svg{flex-shrink:0}.chart-grid{display:grid;grid-template-columns:1fr 1.1fr;gap:15px}.chart-card{min-width:0}.chart-tag{font-size:9px;padding:6px 8px}.donut-wrap{height:210px;position:relative}.donut-center{position:absolute;pointer-events:none;left:50%;top:50%;transform:translate(-50%,-49%);display:flex;flex-direction:column;align-items:center}.donut-center strong{font-size:28px;color:var(--navy)}.donut-center span{font-size:10px;color:var(--muted)}.legend-list{display:flex;flex-direction:column;gap:11px}.legend-list>div{display:flex;align-items:center;gap:9px;font-size:11px}.legend-list i{width:9px;height:9px;border-radius:3px}.legend-list span{color:var(--muted);flex:1}.legend-list strong{font-size:11px;color:var(--navy)}.legend-list small{font-size:10px;color:var(--muted);font-weight:500}.fine-print{font-size:10px!important;color:#798790!important;line-height:1.5!important;margin:14px 0 0}.bar-wrap{height:250px}.warning-chart{margin-top:15px}.warning-bars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 30px}.warning-row>div:first-child,.cost-bar>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:11px;color:var(--muted);margin-bottom:8px}.warning-row strong,.cost-bar strong{color:var(--navy)}.progress-track{height:8px;background:#edf1f3;border-radius:99px;overflow:hidden}.progress-fill{height:100%;background:var(--teal);border-radius:99px;transition:width .2s}.activity-card{margin-top:16px}.activity-row{display:flex;align-items:center;gap:12px;padding:13px 0;border-top:1px solid #edf1f3}.activity-icon{width:34px;height:34px;border-radius:9px;background:#f2f6f7;display:grid;place-items:center;color:#637b88}.activity-main{flex:1;display:flex;flex-direction:column;gap:4px}.activity-main strong{font-size:12px;color:var(--navy)}.activity-main span{font-size:10px;color:var(--muted)}.risk-badge{display:inline-flex;align-items:center;justify-content:center;width:max-content;padding:5px 8px;border-radius:5px;font-size:9px;letter-spacing:.045em;font-weight:800;white-space:nowrap}.risk-badge.danger{background:#fff0f0;color:var(--red)}.risk-badge.caution{background:#fff5e6;color:#935b10}.risk-badge.clear{background:#e8f5f1;color:#087f78}.text-button{border:0;background:none;padding:4px 0;color:var(--teal);font-size:11px;font-weight:700}.footer{min-height:76px}.scanner-layout,.qr-layout,.loan-layout,.risk-layout,.settings-layout,.emergency-grid{display:grid;grid-template-columns:minmax(0,1.03fr) minmax(0,.97fr);gap:17px;align-items:start}.stack{display:flex;flex-direction:column;gap:16px;min-width:0}.field{display:flex;flex-direction:column;gap:8px;margin:0 0 17px}.field-label{font-size:11px;font-weight:700;color:var(--navy)}.field-hint{font-size:10px;color:#7d8b94;line-height:1.5}.field input,.field textarea,.field select{width:100%;border:1px solid #d8e1e6;border-radius:8px;background:#fff;padding:12px 13px;color:var(--ink);font-size:12px;outline:none;transition:border .15s,box-shadow .15s}.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(8,127,120,.10)}.field textarea{resize:vertical;min-height:130px;line-height:1.6}.field input::placeholder,.field textarea::placeholder{color:#a1adb5}.input-meta{display:flex;justify-content:space-between;align-items:center;margin:-7px 0 14px;color:#84929b;font-size:10px}.form-row{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:end}.form-row>.field{min-width:0}.scan-buttons{display:flex;gap:8px;align-items:center;margin-bottom:17px}.how-card h3{margin-bottom:15px}.steps-inline{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.steps-inline>span{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:6px}.steps-inline b{width:22px;height:22px;border-radius:50%;background:var(--mint);color:var(--teal);display:grid;place-items:center;font-size:9px}.steps-inline>svg{width:13px;color:#9aa6ad}.result-placeholder{min-height:390px}.empty-result{min-height:330px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:38px 28px}.empty-icon{height:58px;width:58px;border-radius:16px;background:#eff6f5;color:var(--teal);display:grid;place-items:center;margin-bottom:18px}.empty-result>svg{color:#90a2aa;width:30px;height:30px;margin-bottom:12px}.empty-result h3{font-size:17px;margin:0 0 8px}.empty-result>p{font-size:12px;color:var(--muted);max-width:310px;margin:0;line-height:1.6}.empty-mini{margin-top:25px;padding:11px 13px;border-radius:8px;background:#f5f8f9;color:#70828d;display:flex;align-items:center;gap:8px;font-size:10px}.indicator-card .eyebrow{margin-bottom:13px}.indicator-pills{display:flex;flex-wrap:wrap;gap:7px}.indicator-pills span{padding:7px 10px;border:1px solid var(--line);border-radius:99px;font-size:10px;color:#60727e;background:#fafcfc}.result-panel{padding:18px;background:#fff}.result-danger{border-color:#f3cfd1;background:#fffafa}.result-caution{border-color:#f1dfc0;background:#fffdf8}.result-clear{border-color:#d3e9e2;background:#fbfefc}.result-top{display:flex;gap:12px;align-items:center}.result-icon{height:41px;width:41px;border-radius:11px;display:grid;place-items:center}.result-icon.danger{background:#ffe5e6;color:var(--red)}.result-icon.caution{background:#fff0d6;color:#9d6b1c}.result-icon.clear{background:#e4f5ed;color:var(--teal)}.result-top h2{font-size:17px;margin:6px 0 0;color:var(--navy)}.reason-list{display:flex;flex-direction:column;gap:10px;margin-top:17px}.reason{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:#526572;line-height:1.5}.reason svg{flex-shrink:0;margin-top:1px;color:#b77926}.result-action{margin-top:13px;padding:10px 12px;background:rgba(255,255,255,.75);border-radius:8px;font-weight:700;color:var(--navy);font-size:11px}.matched-list{margin-top:21px}.matched-list h4,.original-message h4{font-size:12px;color:var(--navy);margin:0 0 11px}.matched-item{display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-top:1px solid #edf1f3}.matched-item>div{flex:1}.matched-item strong{font-size:11px}.matched-item p{font-size:10px;color:var(--muted);margin:5px 0 0;line-height:1.5}.original-message{margin-top:17px;background:#f7f9fa;border-radius:9px;padding:14px}.original-message p{font-size:11px;line-height:1.7;color:#526572;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}mark{background:#ffe4b5;color:#684410;border-radius:3px;padding:1px 2px}.heading-icon{color:var(--teal)}.upload-zone{width:100%;border:1.5px dashed #b8cecc;background:#f9fcfb;border-radius:11px;min-height:166px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;color:var(--ink);padding:16px}.upload-zone:hover{background:#f1f8f6;border-color:var(--teal)}.upload-icon{width:37px;height:37px;background:var(--mint);color:var(--teal);border-radius:10px;display:grid;place-items:center}.upload-zone strong{font-size:12px}.upload-zone span{font-size:10px;color:var(--muted)}.upload-zone b{font-size:10px;color:var(--teal);margin-top:4px}.or-divider{display:flex;align-items:center;gap:12px;margin:19px 0;color:#8a969e;font-size:9px;font-weight:750;letter-spacing:.07em}.or-divider:before,.or-divider:after{content:"";height:1px;background:var(--line);flex:1}.button-row{display:flex;gap:9px;margin-top:2px}.inline-error{display:flex;gap:8px;align-items:flex-start;color:#a32530;background:#fff0f0;border:1px solid #f2d2d4;border-radius:8px;padding:11px 12px;font-size:11px;line-height:1.5;margin-top:14px}.inline-error svg{flex-shrink:0}.info-card{background:#fbfdfd}.info-card p{font-size:11px;color:var(--muted);margin:8px 0 0}.check-list{list-style:none;padding:0;margin:13px 0 0;display:grid;gap:11px}.check-list li{display:flex;align-items:center;gap:9px;font-size:11px;color:#526572}.check-list svg{width:16px;color:var(--teal)}.payment-summary{background:#f5f9f8;border-radius:10px;padding:17px;margin:4px 0 15px}.payment-summary h2{font-size:29px;margin:8px 0 2px;color:var(--navy)}.payment-summary>span:last-child{font-size:10px;color:var(--muted)}.detail-list{display:flex;flex-direction:column}.detail-row{display:flex;gap:12px;justify-content:space-between;padding:11px 0;border-bottom:1px solid #edf1f3;font-size:11px}.detail-row span{color:var(--muted)}.detail-row strong{text-align:right;max-width:65%;overflow-wrap:anywhere;color:var(--navy)}.direction-box{display:flex;gap:11px;background:#f0f6f8;padding:13px;border-radius:9px;margin-top:16px}.direction-box.danger-box{background:#fff1f1}.direction-icon{width:30px;height:30px;display:grid;place-items:center;background:white;color:var(--navy);border-radius:8px;flex-shrink:0}.direction-box strong{font-size:10px;color:var(--navy)}.direction-box p{font-size:10px;color:var(--muted);margin:5px 0 0}.pin-reminder{display:flex;align-items:flex-start;gap:10px;background:#fff7e9;border-color:#f2e6d2;color:#80551e}.pin-reminder>svg{flex-shrink:0;color:#a36b1f}.pin-reminder strong{font-size:11px}.pin-reminder p{font-size:10px;color:#7d694d;margin:4px 0 0}.demo-example{margin-top:24px;padding:14px;border:1px solid var(--line);border-radius:9px;text-align:left;width:100%;display:flex;flex-direction:column;gap:10px}.demo-example code{font-size:10px;overflow-wrap:anywhere;color:var(--muted);line-height:1.5}.guide-steps{padding:25px 30px}.guide-step{display:grid;grid-template-columns:45px 2px 1fr;gap:18px;position:relative;padding:12px 0 24px}.guide-step:last-child{padding-bottom:8px}.step-number{width:39px;height:39px;border-radius:50%;display:grid;place-items:center;background:var(--mint);color:var(--teal);font-size:12px;font-weight:800}.step-line{background:#d8e9e4;width:2px;justify-self:center}.guide-step:last-child .step-line{background:transparent}.guide-step h3{font-size:17px;margin:1px 0 5px}.guide-step p{font-size:12px;color:#526572;margin:0 0 5px}.guide-step small{font-size:10px;color:#82909a}.verify-callout{display:flex;align-items:flex-start;gap:14px;background:#eef7f4;border-color:#d9ebe5;margin-top:16px}.verify-callout>svg{color:var(--teal);flex-shrink:0}.verify-callout h3{margin:0 0 5px}.verify-callout p{font-size:11px;color:#536e68;margin:0}.scam-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.scam-card{padding:18px}.scam-card>svg{color:#bd8a38;width:19px;margin-bottom:12px}.scam-card h3{font-size:13px;line-height:1.35}.scam-card p{font-size:10px;color:var(--muted);margin:0}.guide-bottom{margin-top:16px;background:#f6faf9}.guide-bottom p{font-size:11px;color:var(--muted)}.emergency-banner{display:flex;align-items:center;gap:17px;background:#fff4f1;border-color:#f2ddd8;margin-bottom:17px}.emergency-symbol{width:53px;height:53px;border-radius:14px;background:#ffe5df;color:#b64b35;display:grid;place-items:center;flex-shrink:0}.emergency-banner h2{font-size:21px;color:var(--navy);margin:6px 0}.emergency-banner p{font-size:11px;color:#765e57;margin:0}.emergency-step{display:flex;gap:13px;padding:15px 0;border-top:1px solid #edf1f3}.emergency-step>span{height:27px;width:27px;border-radius:50%;background:#eef4f6;color:var(--navy);display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0}.emergency-step strong{font-size:12px}.emergency-step p{font-size:10px;color:var(--muted);margin:5px 0 0}.emergency-contacts{display:grid;grid-template-columns:1fr 1fr;gap:11px}.contact-card{background:var(--navy);color:#fff;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:9px}.contact-card span{font-size:9px;color:#c1d5dd;letter-spacing:.07em;font-weight:700}.contact-card strong{font-size:29px;letter-spacing:-.5px}.contact-card b{display:flex;align-items:center;gap:5px;font-size:10px;color:#b1e5d9;margin-top:5px}.contact-card.portal{background:#e8f5f1;color:var(--navy)}.contact-card.portal span{color:#4e7771}.contact-card.portal b{color:var(--teal)}.muted{font-size:11px;color:var(--muted);line-height:1.6}.summary-preview{margin-top:18px;border:1px solid var(--line);border-radius:9px;padding:11px;background:#fafcfc}.summary-preview strong{font-size:10px}.summary-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:9px;line-height:1.5;color:#677984;margin-bottom:0}.loan-result{background:#f9fcfb;border-color:#dcebe6}.rate-number{font-size:53px;font-weight:800;letter-spacing:-2px;color:var(--navy);margin:8px 0 4px}.rate-number small{font-size:25px}.loan-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #dce9e5;margin-top:17px;padding-top:16px;gap:10px}.loan-metrics>div{display:flex;flex-direction:column;gap:7px}.loan-metrics span{font-size:9px;color:var(--muted)}.loan-metrics strong{font-size:16px;color:var(--navy)}.text-red{color:var(--red)!important}.loan-callout{background:#e8f5f1;color:#256e64;font-size:11px;padding:12px;border-radius:8px;margin-top:17px;font-weight:650}.cost-bars{display:flex;flex-direction:column;gap:18px}.cost-bar>div:first-child{font-size:10px}.formula-box{padding:14px;background:#f6f8f9;border-radius:8px;color:#526572;font-size:11px;line-height:1.9;margin-top:12px}.risk-layout{grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr)}.question-list{display:flex;flex-direction:column;margin:4px 0 20px}.question{display:flex;gap:12px;border-top:1px solid #edf1f3;padding:15px 0}.question-number{width:27px;height:27px;border-radius:8px;background:#eff5f4;color:var(--teal);display:grid;place-items:center;font-size:10px;font-weight:800;flex-shrink:0}.question-content{flex:1;min-width:0}.question-content>strong{font-size:11px;line-height:1.5;display:block;margin-bottom:10px}.answer-group{display:flex;gap:7px;flex-wrap:wrap}.answer-option{border:1px solid var(--line);padding:7px 13px;border-radius:7px;background:#fff;font-size:10px;color:#61727c}.answer-option:hover{border-color:#9fc8c0}.answer-option.selected-yes{background:#fff0f0;border-color:#e5b8bb;color:var(--red);font-weight:700}.answer-option.selected-no{background:#e8f5f1;border-color:#b8ded1;color:var(--teal);font-weight:700}.answer-option.selected-unsure{background:#fff6e8;border-color:#ead7b5;color:#935b10;font-weight:700}.six-bars{display:flex;flex-direction:column;gap:0;margin:14px 0}.six-bar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px solid #edf1f3;font-size:10px;color:var(--muted)}.risk-layout .empty-result .progress-track{width:100%;margin:20px 0 7px}.settings-layout{grid-template-columns:1.1fr .9fr}.setting-row{padding:17px 0;border-top:1px solid #edf1f3;display:flex;align-items:center;justify-content:space-between;gap:18px}.setting-row>div{display:flex;flex-direction:column;gap:5px}.setting-row strong{font-size:12px;color:var(--navy)}.setting-row span{font-size:10px;color:var(--muted);line-height:1.5}.switch{width:39px;height:22px;padding:2px;border:0;border-radius:99px;background:#d4dde2;flex-shrink:0;transition:background .18s}.switch i{display:block;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);transition:transform .18s}.switch.on{background:var(--teal)}.switch.on i{transform:translateX(17px)}.compact-select{padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:white;font-size:11px;color:var(--ink)}.privacy-active{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#f0f8f4;border-radius:7px;padding:10px;font-size:10px;color:#39756e}.privacy-active .text-button{margin-left:auto}.privacy-promise{background:var(--navy);color:white}.privacy-illustration{width:47px;height:47px;border-radius:13px;display:grid;place-items:center;background:#21465a;color:#a2e1d3;margin-bottom:17px}.privacy-promise h3{color:white;font-size:18px}.privacy-promise p{font-size:12px;color:#d1e1e7;margin:0}.policy-lines{display:grid;gap:10px;margin-top:16px}.policy-lines span{display:flex;gap:8px;align-items:center;font-size:10px;color:#5e726f}.policy-lines svg{width:15px;color:var(--teal)}.toast{position:fixed;right:22px;bottom:22px;z-index:50;background:#173b4d;color:white;box-shadow:0 8px 28px rgba(16,45,67,.22);padding:12px 15px;border-radius:9px;display:flex;align-items:center;gap:9px;font-size:12px;max-width:min(480px,calc(100vw - 30px))}.toast svg{flex-shrink:0;color:#9de1cb}.toast button{background:transparent;border:0;color:white;margin-left:5px}.hamburger,.mobile-close,.mobile-scrim{display:none}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.large-text{font-size:110%}.large-text .field input,.large-text .field textarea,.large-text .field select{font-size:14px}.simple-mode .fine-print,.simple-mode .field-hint{font-size:11px!important}.simple-mode .page-content{max-width:1280px}.simple-mode .nav-link,.simple-mode .button{min-height:48px}.text-button:hover,.text-link:hover{color:#045c56;text-decoration:underline}
+@media(max-width:1100px){.sidebar{width:238px;padding-left:18px;padding-right:18px}.page-content{padding:28px 26px 40px}.topbar{padding:0 26px}.hero{padding:27px}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.safety-grid{grid-template-columns:1fr 1fr}.scanner-layout,.qr-layout,.loan-layout,.risk-layout,.settings-layout,.emergency-grid{grid-template-columns:1fr}.chart-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.sidebar{position:fixed;left:0;top:0;bottom:0;height:100dvh;transform:translateX(-105%);transition:transform .22s;width:min(290px,86vw);box-shadow:8px 0 30px rgba(16,45,67,.12)}.sidebar.open{transform:translateX(0)}.mobile-scrim{display:block;position:fixed;inset:0;background:rgba(8,24,34,.38);border:0;z-index:19}.mobile-close{display:grid;margin-left:auto}.hamburger{display:grid}.topbar{height:72px;padding:0 16px}.crumb span{font-size:9px}.crumb strong{font-size:14px}.top-actions{gap:9px}.language-button{padding:8px;font-size:0}.language-button svg{width:17px;height:17px}.simple-toggle{font-size:0;gap:0}.simple-toggle>span{width:34px}.profile-button>span:not(.avatar),.profile-button>svg{display:none}.page-content{padding:21px 15px 32px}.page-title{align-items:flex-start;flex-direction:column;margin:3px 0 20px;gap:12px}.page-title h1{font-size:25px}.page-title p{font-size:12px}.title-actions{width:100%}.hero{padding:22px 19px;display:block}.hero h1{font-size:28px}.hero-copy>p{font-size:13px}.hero-actions{flex-direction:column;align-items:stretch}.hero-actions .button{width:100%}.hero-promise{width:100%;margin-top:20px;padding:17px}.hero-promise h2{font-size:19px}.section-heading{align-items:flex-start;flex-direction:column;gap:5px;margin:24px 0 13px}.section-heading h2{font-size:19px}.quick-grid{grid-template-columns:1fr;gap:11px}.quick-card{min-height:155px;padding:19px}.quick-card h3{font-size:17px;margin:12px 0 6px}.safety-grid{grid-template-columns:1fr}.safety-card{padding:18px;gap:12px}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat-card{padding:13px}.stat-card>span{font-size:9px}.stat-card>strong{font-size:24px}.stat-icon{width:29px;height:29px}.chart-grid{grid-template-columns:1fr}.chart-card{padding:17px}.warning-bars{grid-template-columns:1fr;gap:15px}.activity-card{padding:17px}.activity-row{gap:8px}.activity-main strong{font-size:11px}.activity-row .risk-badge{font-size:8px}.footer{padding:20px 16px;gap:8px;flex-direction:column;align-items:flex-start}.footer-disclaimer{margin-left:0}.card{padding:18px}.form-row{grid-template-columns:1fr}.scan-buttons{margin-top:0}.scan-buttons .button{flex:1}.steps-inline{align-items:flex-start;flex-direction:column;gap:9px}.steps-inline>svg{display:none}.scanner-layout,.qr-layout,.loan-layout,.risk-layout,.settings-layout,.emergency-grid{gap:12px}.result-placeholder{min-height:300px}.scam-grid{grid-template-columns:1fr 1fr}.guide-steps{padding:18px}.guide-step{grid-template-columns:37px 2px 1fr;gap:12px}.step-number{width:34px;height:34px}.emergency-contacts{grid-template-columns:1fr}.emergency-banner{align-items:flex-start;padding:17px}.emergency-banner h2{font-size:18px}.loan-metrics{grid-template-columns:1fr;gap:12px}.loan-metrics>div{display:flex;flex-direction:row;justify-content:space-between}.rate-number{font-size:46px}.question{gap:9px}.answer-option{padding:7px 10px}.settings-layout .card{padding:17px}.setting-row{gap:10px}.footer strong{font-size:9px}}
+@media(max-width:390px){.scam-grid{grid-template-columns:1fr}.quick-card p{font-size:11px}.activity-main span{font-size:9px}.risk-badge{padding:4px 5px}.page-title h1{font-size:23px}}
+=== END FILE: checkfirst-frontend/src/styles.css ===
+
+=== FILE: checkfirst-frontend/src/main.tsx ===
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import App from './App';
+import './styles.css';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <BrowserRouter><App /></BrowserRouter>
+  </React.StrictMode>,
+);
+=== END FILE: checkfirst-frontend/src/main.tsx ===
+
+=== FILE: checkfirst-frontend/tsconfig.json ===
+{
+  "compilerOptions": {
+    "target": "ES2020", "useDefineForClassFields": true, "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext", "skipLibCheck": true, "moduleResolution": "Bundler", "allowImportingTsExtensions": true,
+    "resolveJsonModule": true, "isolatedModules": true, "noEmit": true, "jsx": "react-jsx", "strict": true,
+    "noUnusedLocals": false, "noUnusedParameters": false, "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}
+=== END FILE: checkfirst-frontend/tsconfig.json ===
+
+=== FILE: checkfirst-frontend/tsconfig.node.json ===
+{"compilerOptions":{"composite":true,"skipLibCheck":true,"module":"ESNext","moduleResolution":"Bundler","allowImportingTsExtensions":true},"include":["vite.config.ts"]}
+=== END FILE: checkfirst-frontend/tsconfig.node.json ===
+
+=== FILE: checkfirst-frontend/package.json ===
+{
+  "name": "checkfirst-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {"dev": "vite", "build": "tsc -b && vite build", "preview": "vite preview", "typecheck": "tsc -b --pretty"},
+  "dependencies": {
+    "jsqr": "^1.4.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "recharts": "^2.13.3"
+  },
+  "devDependencies": {
+    "@types/jsqr": "^1.4.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.6.2",
+    "vite": "^5.4.11"
+  }
+}
+=== END FILE: checkfirst-frontend/package.json ===
+
+=== FILE: checkfirst-frontend/.env.example ===
+# Leave blank to use the self-contained demo mode.
+# Set this to your deployed backend origin when your API is ready.
+VITE_API_BASE_URL=
+=== END FILE: checkfirst-frontend/.env.example ===
+
+=== FILE: checkfirst-frontend/vite.config.ts ===
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: { host: '0.0.0.0', port: 5173 },
+});
+=== END FILE: checkfirst-frontend/vite.config.ts ===
+
+=== FILE: checkfirst-frontend/README.md ===
+# CheckFirst frontend starter
+
+A responsive React + TypeScript frontend inspired by the CheckFirst Figma design. It includes eight separate pages and self-contained demo interactions.
+
+## Pages
+- Dashboard with illustrative analytics
+- Scam Message Scanner (local rule-based demo)
+- QR & Payment Link Analyzer (local UPI URI parsing and QR decoding)
+- Pause & Verify Guide
+- Emergency Help and browser-generated incident summary
+- Loan Cost Calculator
+- Loan Risk Checker
+- Settings (language toggle, Simple Mode, larger text, opt-in local check metadata)
+
+## Run locally
+Requires Node.js 18+.
+
+```bash
+npm install
+npm run dev
+```
+
+Open the URL printed by Vite (usually http://localhost:5173).
+
+To verify production compilation:
+
+```bash
+npm run build
+```
+
+## Google AI Studio handoff
+Upload this folder/project to Google AI Studio (Build mode / code workspace) and paste the supplied backend prompt. The frontend intentionally works in a local demo mode before an API is configured.
+
+Set `VITE_API_BASE_URL` in `.env` only after your backend is deployed. Do not put Gemini API keys, Firebase Admin credentials, or other secrets in this frontend environment. All secrets belong on the server.
+
+## Safety and demo limitations
+- Message scanning is a small deterministic keyword/rule demo, not a trained scam detector.
+- QR parsing reads UPI URI fields. It does not verify the payee's identity, account ownership, or trustworthiness.
+- Loan results are estimates, not regulatory APR disclosures or financial advice.
+- Dashboard analytics are fictional demonstration values until connected to real, consented app events.
+- Incident summaries are generated locally. No data is sent to CheckFirst in this frontend-only starter.
+- Optional history is off by default and stores only metadata locally, not raw message text, QR contents, PINs, or OTPs.
+
+## Backend contract expected by the UI integration prompt
+Suggested API endpoints:
+- `POST /api/v1/scan/message`
+- `POST /api/v1/scan/upi` (for decoded UPI URI fields; QR decoding itself can stay client-side)
+- `POST /api/v1/loan/calculate`
+- `POST /api/v1/loan/assess`
+- `GET /api/v1/dashboard/summary`
+- `GET /api/v1/history` and `DELETE /api/v1/history` (opt-in metadata only)
+
+Do not accept or persist payment credentials, UPI PINs, OTPs, passwords, full card data, or raw QR/message content by default.
+=== END FILE: checkfirst-frontend/README.md ===
+
+=== FILE: checkfirst-frontend/index.html ===
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#102d43" />
+    <meta name="description" content="CheckFirst helps you check before you pay or borrow." />
+    <title>CheckFirst — Check before you pay or borrow</title>
+  </head>
+  <body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
+</html>
+=== END FILE: checkfirst-frontend/index.html ===
+

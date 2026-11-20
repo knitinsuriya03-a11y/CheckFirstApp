@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserPreferences(data, userId) {
+      return data.userId is string &&
+             data.userId.size() >= 1 &&
+             data.userId.size() <= 128 &&
+             data.userId == userId &&
+             data.userId == request.auth.uid &&
+             data.tamil is bool &&
+             data.simpleMode is bool &&
+             data.largeText is bool &&
+             data.safetyTips is bool &&
+             data.completionAlerts is bool &&
+             data.saveHistory is bool &&
+             data.createdAt is timestamp &&
+             data.createdAt <= request.time &&
+             data.updatedAt is timestamp &&
+             data.updatedAt <= request.time;
+    }
+
+    function isValidCheckHistoryEntry(data, userId) {
+      return data.userId is string &&
+             data.userId.size() >= 1 &&
+             data.userId.size() <= 128 &&
+             data.userId == userId &&
+             data.userId == request.auth.uid &&
+             data.kind is string &&
+             data.kind.size() >= 1 &&
+             data.kind.size() <= 60 &&
+             data.label is string &&
+             data.label.size() >= 1 &&
+             data.label.size() <= 120 &&
+             data.risk is string &&
+             data.risk.size() >= 1 &&
+             data.risk.size() <= 16 &&
+             data.risk in ['danger', 'caution', 'clear'] &&
+             data.createdAt is timestamp &&
+             data.createdAt <= request.time;
+    }
+
+    match /users/{userId}/preferences/{prefId} {
+      allow get: if isOwner(userId) && isValidId(userId) && prefId == 'default';
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       prefId == 'default' &&
+                       incoming().keys().hasAll([
+                         'userId', 'tamil', 'simpleMode', 'largeText',
+                         'safetyTips', 'completionAlerts', 'saveHistory',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'tamil', 'simpleMode', 'largeText',
+                         'safetyTips', 'completionAlerts', 'saveHistory',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserPreferences(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       prefId == 'default' &&
+                       isValidUserPreferences(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'tamil', 'simpleMode', 'largeText',
+                         'safetyTips', 'completionAlerts', 'saveHistory',
+                         'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId) && prefId == 'default';
+    }
+
+    match /users/{userId}/checkHistory/{entryId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(entryId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(entryId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'kind', 'label', 'risk', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'kind', 'label', 'risk', 'createdAt'
+                       ]) &&
+                       isValidCheckHistoryEntry(incoming(), userId);
+
+      allow update: if false;
+
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(entryId);
+    }
+  }
+}

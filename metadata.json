@@ -1,0 +1,6 @@
+{
+  "name": "CheckFirst",
+  "description": "Financial safety companion for India to check scam messages, UPI QR links, and loan offers before you pay or borrow, enhanced with Firebase and Gemini AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="obsidian_void">#FF07060C</color>
+    <color name="purple_200">#FFC084FC</color>
+    <color name="purple_500">#FF8B3DFF</color>
+    <color name="purple_700">#FF6D28D9</color>
+    <color name="teal_200">#FF34D399</color>
+    <color name="teal_700">#FF10B981</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
