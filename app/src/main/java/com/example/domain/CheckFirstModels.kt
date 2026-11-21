@@ -75,12 +75,22 @@ data class MatchedIndicator(
     val explanation: String,
     val severity: RiskLevel,
     val highlightTerms: List<String>,
+    val ruleId: String = id,
+    val strength: EvidenceStrength = when (severity) {
+        RiskLevel.DANGER -> EvidenceStrength.CRITICAL
+        RiskLevel.CAUTION -> EvidenceStrength.MEDIUM
+        RiskLevel.CLEAR -> EvidenceStrength.INFORMATIONAL
+    },
 )
 
 data class MessageScanResult(
     val risk: RiskLevel,
     val verdict: String,
     val matches: List<MatchedIndicator>,
+    val assessment: SafetyAssessment = SafetyDecisionEngine.evaluate(
+        featureName = MessageScamAnalyzer.FEATURE_NAME,
+        findings = emptyList(),
+    ),
 )
 
 data class UpiPaymentDetails(

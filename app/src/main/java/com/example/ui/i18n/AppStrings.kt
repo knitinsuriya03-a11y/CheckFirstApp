@@ -181,6 +181,11 @@ interface AppStrings {
     val scanCredentialNote: String
     val scanCharCountSuffix: String
     val scanLoadExample: String
+    val scanSamplesLabel: String
+    val scanSampleRefundPin: String
+    val scanSampleDigitalArrest: String
+    val scanSampleGenuineOtp: String
+    val scanSampleTanglish: String
     val scanLanguageLabel: String
     val scanLangEnglish: String
     val scanLangTamil: String
@@ -197,6 +202,20 @@ interface AppStrings {
     val scanNoIndicators: String
     val scanOriginalMsgTitle: String
     val scanAnotherBtn: String
+    val scanMoreDetails: String
+    val scanHideDetails: String
+    val scanRecommendedActionLabel: String
+    val scanConfidenceLabel: String
+    val scanOnlineCheckLabel: String
+    val scanOnlineCheckNo: String
+    val scanRuleSetLabel: String
+    val scanMissingInfoTitle: String
+    val scanReasonPrefix: String
+    val scanLimitationPrefix: String
+    val verdictHighRisk: String
+    val verdictCaution: String
+    val verdictLikelyLegitimate: String
+    val verdictUnableToAssess: String
     val scanEmptyTitle: String
     val scanEmptySub: String
     val scanEmptyBadge: String

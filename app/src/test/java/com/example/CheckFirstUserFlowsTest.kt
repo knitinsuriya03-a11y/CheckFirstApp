@@ -372,17 +372,17 @@ class CheckFirstUserFlowsTest {
         composeRule.onNodeWithTag("scanner_load_example_button").performScrollTo().performClick()
         composeRule.onNodeWithTag("scanner_analyze_button").performScrollTo().performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Several serious warning signs were found.").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(EnglishStrings.verdictHighRisk).performScrollTo().assertIsDisplayed()
 
         // Flip app language to Tamil while result is on screen
         tamil = true
         composeRule.waitForIdle()
 
-        // Both screen UI chrome AND the computed local scan verdict/indicators translate to Tamil
+        // Both screen UI chrome AND the computed local scan verdict/details translate to Tamil
         composeRule.onNodeWithText(TamilStrings.navScanner).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(TamilStrings.scanAnalyzeBtn).performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText(TamilStrings.scanIndicatorsTitle, substring = true).performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("பல தீவிர எச்சரிக்கை அறிகுறிகள் கண்டறியப்பட்டன.").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(TamilStrings.scanMoreDetails).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(TamilStrings.verdictHighRisk).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -552,13 +552,14 @@ class CheckFirstUserFlowsTest {
         composeRule.onNodeWithTag("scanner_analyze_button").performScrollTo().performClick()
         assertEquals(EnglishStrings.scanNoticeEmpty, lastNotice)
 
-        // Load example, scan, then tap "Scan another message" -> clears input and returns to empty state
+        // Load example, scan, then tap "Scan another message" -> clears input and removes result card
         composeRule.onNodeWithTag("scanner_load_example_button").performScrollTo().performClick()
         composeRule.onNodeWithTag("scanner_analyze_button").performScrollTo().performClick()
         composeRule.waitForIdle()
+        composeRule.onNodeWithText(EnglishStrings.verdictHighRisk).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("scanner_scan_another_button").performScrollTo().performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText(EnglishStrings.scanEmptyTitle).performScrollTo().assertIsDisplayed()
+        assertEquals(0, composeRule.onAllNodesWithText(EnglishStrings.verdictHighRisk).fetchSemanticsNodes().size)
     }
 
     @Test

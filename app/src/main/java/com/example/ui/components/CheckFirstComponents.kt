@@ -382,6 +382,145 @@ fun StatusPanel(
     }
 }
 
+/**
+ * Shared 4-outcome verdict card driven directly by [com.example.domain.SafetyAssessment].
+ * Shows verdict, top 2–3 findings, and one clear recommended action without fake probabilities.
+ */
+@Composable
+fun SafetyVerdictPanel(
+    assessment: com.example.domain.SafetyAssessment,
+    modifier: Modifier = Modifier,
+) {
+    val c = LocalCheckFirstColors.current
+    val s = LocalStrings.current
+    val (bg, border, iconBg, iconTint, icon) = when (assessment.classification) {
+        com.example.domain.SafetyClassification.HIGH_RISK ->
+            Quintuple(c.dangerCardBg, c.dangerBorder, c.dangerBg, c.danger, Icons.Filled.GppBad)
+        com.example.domain.SafetyClassification.CAUTION ->
+            Quintuple(c.cautionCardBg, c.cautionBorder, c.cautionBg, c.cautionIcon, Icons.Filled.WarningAmber)
+        com.example.domain.SafetyClassification.LIKELY_LEGITIMATE ->
+            Quintuple(c.clearCardBg, c.clearBorder, c.clearBg, c.clear, Icons.Filled.VerifiedUser)
+        com.example.domain.SafetyClassification.UNABLE_TO_ASSESS ->
+            Quintuple(c.surfaceRaised, c.accentBorder, c.accentTint, c.accentLight, Icons.Filled.ErrorOutline)
+    }
+    val badgeText = when (assessment.classification) {
+        com.example.domain.SafetyClassification.HIGH_RISK -> s.badgeDanger
+        com.example.domain.SafetyClassification.CAUTION -> s.badgeCaution
+        com.example.domain.SafetyClassification.LIKELY_LEGITIMATE -> s.badgeClear
+        com.example.domain.SafetyClassification.UNABLE_TO_ASSESS -> s.verdictUnableToAssess.uppercase()
+    }
+
+    CheckFirstCard(
+        modifier = modifier.testTag("safety_verdict_panel"),
+        containerColor = bg,
+        borderColor = border,
+        contentPadding = PaddingValues(18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(iconBg),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = assessment.verdictLabel, tint = iconTint, modifier = Modifier.size(22.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Surface(
+                    color = iconBg,
+                    shape = PillShape,
+                    border = BorderStroke(1.dp, border),
+                ) {
+                    Text(
+                        text = badgeText,
+                        color = iconTint,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = assessment.verdictLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = c.navy,
+                )
+            }
+        }
+
+        val topFindings = assessment.primaryFindings.take(3)
+        Spacer(Modifier.height(14.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (topFindings.isNotEmpty()) {
+                topFindings.forEach { finding ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                        Icon(
+                            imageVector = Icons.Filled.ErrorOutline,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.padding(top = 2.dp).size(16.dp),
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = finding.title,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = c.navy,
+                            )
+                            Text(
+                                text = finding.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = c.ink,
+                            )
+                        }
+                    }
+                }
+            } else if (assessment.missingInformation.isNotEmpty()) {
+                assessment.missingInformation.take(2).forEach { info ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                        Icon(
+                            imageVector = Icons.Filled.ErrorOutline,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.padding(top = 2.dp).size(16.dp),
+                        )
+                        Text(text = info, style = MaterialTheme.typography.bodySmall, color = c.ink)
+                    }
+                }
+            } else {
+                Text(text = s.scanNoPatternReason, style = MaterialTheme.typography.bodySmall, color = c.ink)
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Surface(
+            color = c.surfaceRaised,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, border),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = s.scanRecommendedActionLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = iconTint,
+                )
+                Text(
+                    text = assessment.recommendedNextAction,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = c.navy,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = s.statusDisclaimer,
+            style = MaterialTheme.typography.bodySmall,
+            color = c.subtle,
+        )
+    }
+}
+
 private data class Quintuple<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
 
 @Composable

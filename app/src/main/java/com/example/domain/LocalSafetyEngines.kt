@@ -33,11 +33,27 @@ object CheckFirstDemoData {
         "Unfamiliar link" to 18,
     )
 
+    // Synthetic demonstration fixtures for testing and demo videos (not real intercepted messages)
     const val SAMPLE_SCAM_MESSAGE =
         "Congratulations! Your bank refund is pending. Scan this QR code and enter your UPI PIN within 10 minutes to receive your refund: https://example.invalid/refund"
 
     const val SAMPLE_SCAM_MESSAGE_TAMIL =
         "அவசரம்! உங்கள் வங்கி திரும்பப் பணம் நிலுவையில் உள்ளது. 10 நிமிடத்தில் பணத்தைப் பெற QR ஸ்கேன் செய்து உங்கள் யுபிஐ பின் உள்ளிடவும்: https://example.invalid/refund"
+
+    const val SAMPLE_DIGITAL_ARREST_EN =
+        "CBI Cyber Police notice: An illegal parcel was found in your name. You are under digital arrest. Stay on video call, do not tell anyone, and transfer Rs 25,000 for RBI verification."
+
+    const val SAMPLE_DIGITAL_ARREST_TAMIL =
+        "சைபர் கிரைம் காவல்துறை: உங்கள் பெயரில் சட்டவிரோத பார்சல் உள்ளது. டிஜிட்டல் அரெஸ்ட் வாரண்ட் பிறப்பிக்கப்பட்டுள்ளது. யாரிடமும் சொல்ல வேண்டாம், உடனே ₹25,000 பணம் அனுப்பவும்."
+
+    const val SAMPLE_GENUINE_OTP_EN =
+        "Your OTP is 482913 for bank login. Do not share this OTP with anyone."
+
+    const val SAMPLE_GENUINE_OTP_TAMIL =
+        "உங்கள் வங்கி உள்நுழைவு OTP 482913. இதை யாருடனும் பகிர வேண்டாம்."
+
+    const val SAMPLE_TANGLISH_SCAM =
+        "Sir bank la irundhu pesuren. Unga KYC expire aaguthu, account block aagum. Udane ungakitta vandha OTP sollunga illana AnyDesk install pannunga."
 
     const val SAMPLE_UPI_URI =
         "upi://pay?pa=refund-help@demobank&pn=Refund%20Support&am=2000&tn=Refund%20processing"
@@ -45,148 +61,25 @@ object CheckFirstDemoData {
 
 object LocalSafetyEngines {
 
-    private data class ScanRule(
-        val id: String,
-        val labelEn: String,
-        val labelTa: String,
-        val explanationEn: String,
-        val explanationTa: String,
-        val regex: Regex,
-        val severity: RiskLevel,
-        val highlightTerms: List<String>,
-    )
-
-    private val scanRules: List<ScanRule> = listOf(
-        ScanRule(
-            id = "urgency",
-            labelEn = "Urgency or pressure",
-            labelTa = "அவசரம் அல்லது அழுத்தம்",
-            explanationEn = "The message creates pressure to act quickly instead of giving you time to verify independently.",
-            explanationTa = "தனியாக சரிபார்க்க நேரம் தராமல் உடனடியாக செயல்பட இந்த செய்தி அழுத்தம் கொடுக்கிறது.",
-            regex = Regex(
-                """\b(within\s*\d+\s*(minute|min|hour)|immediately|urgent|act now|last chance|expire soon|today only|account.*block|10 minutes)\b|உடனே|அவசரம்|நிமிடத்தில்""",
-                RegexOption.IGNORE_CASE,
-            ),
-            severity = RiskLevel.CAUTION,
-            highlightTerms = listOf("within 10 minutes", "immediately", "urgent", "act now", "last chance", "உடனே", "அவசரம்", "நிமிடத்தில்"),
-        ),
-        ScanRule(
-            id = "authority",
-            labelEn = "Possible impersonation",
-            labelTa = "ஆள்மாறாட்டம் இருக்கலாம்",
-            explanationEn = "It claims to represent a bank, government body, police, courier, or service provider. Verify using a known official channel.",
-            explanationTa = "வங்கி, அரசு, காவல்துறை அல்லது சேவை நிறுவனம் எனக் கூறுகிறது. அதிகாரப்பூர்வ எண்ணில் தனியாக சரிபார்க்கவும்.",
-            regex = Regex(
-                """\b(bank|rbi|police|cyber cell|courier|electricity board|customs|income tax|kyc|customer care)\b|வங்கி|காவல்துறை""",
-                RegexOption.IGNORE_CASE,
-            ),
-            severity = RiskLevel.CAUTION,
-            highlightTerms = listOf("bank", "police", "RBI", "KYC", "cyber cell", "வங்கி", "காவல்துறை"),
-        ),
-        ScanRule(
-            id = "refund",
-            labelEn = "Refund or receive-money wording",
-            labelTa = "பணம் திரும்பப் பெறும் ஏமாற்று வார்த்தைகள்",
-            explanationEn = "It presents a QR scan, payment approval, or PIN entry as a way to receive a refund. A UPI PIN authorizes an outgoing payment.",
-            explanationTa = "பணம் திரும்பப் பெற QR ஸ்கேன் அல்லது PIN உள்ளிடச் சொல்கிறது. UPI PIN என்பது பணம் அனுப்ப மட்டுமே பயன்படும்.",
-            regex = Regex(
-                """\b(refund|cashback|receive money|credit.*refund|scan.*qr|qr.*refund|claim.*refund)\b|பணத்தைப் பெற|திரும்பப் பணம்""",
-                RegexOption.IGNORE_CASE,
-            ),
-            severity = RiskLevel.DANGER,
-            highlightTerms = listOf("refund", "scan this QR", "scan QR", "cashback", "receive money", "பணத்தைப் பெற", "திரும்பப் பணம்"),
-        ),
-        ScanRule(
-            id = "credential",
-            labelEn = "Sensitive credential request",
-            labelTa = "ரகசிய எண் / PIN / OTP கோரிக்கை",
-            explanationEn = "A request for a UPI PIN, OTP, password, or banking credential is a serious warning sign. Never share these details.",
-            explanationTa = "UPI PIN, OTP, கடவுச்சொல் அல்லது வங்கி ரகசியத் தகவல்களைக் கேட்பது தீவிர அபாய அறிகுறி. ஒருபோதும் பகிர வேண்டாம்.",
-            regex = Regex(
-                """\b(upi\s*pin|otp|one.?time password|bank password|card pin|cvv|password|share.*pin|enter.*pin)\b|ரகசிய எண்|கடவுச்சொல்|யுபிஐ\s*பின்|ஓடிபி""",
-                RegexOption.IGNORE_CASE,
-            ),
-            severity = RiskLevel.DANGER,
-            highlightTerms = listOf("UPI PIN", "OTP", "password", "CVV", "PIN", "ரகசிய எண்", "கடவுச்சொல்", "யுபிஐ பின்", "ஓடிபி"),
-        ),
-        ScanRule(
-            id = "fee",
-            labelEn = "Upfront payment request",
-            labelTa = "முன்பணம் கோரிக்கை",
-            explanationEn = "The message appears to ask for a fee before a reward, refund, job, or service is delivered.",
-            explanationTa = "பரிசு, பணம் திரும்பப் பெறுதல், வேலை அல்லது சேவைக்கு முன்பே கட்டணம் கேட்பதாகத் தெரிகிறது.",
-            regex = Regex(
-                """\b(processing fee|registration fee|pay.*first|advance fee|unlock.*payment|verification fee)\b|முன்பணம்""",
-                RegexOption.IGNORE_CASE,
-            ),
-            severity = RiskLevel.CAUTION,
-            highlightTerms = listOf("processing fee", "registration fee", "advance fee", "verification fee", "முன்பணம்"),
-        ),
-        ScanRule(
-            id = "lure",
-            labelEn = "Prize or job lure",
-            labelTa = "பரிசு அல்லது வேலை ஆசை",
-            explanationEn = "Unexpected prizes or job offers can be used to start a conversation that later asks for money or personal information.",
-            explanationTa = "எதிர்பாராத பரிசுகள் அல்லது வேலை சலுகைகள் பின்னர் பணமோ தனிப்பட்ட தகவலோ கேட்கப் பயன்படுத்தப்படலாம்.",
-            regex = Regex(
-                """\b(congratulations|winner|prize|lottery|selected for job|work from home|guaranteed income|reward)\b|பரிசு""",
-                RegexOption.IGNORE_CASE,
-            ),
-            severity = RiskLevel.CAUTION,
-            highlightTerms = listOf("congratulations", "winner", "prize", "lottery", "reward", "பரிசு"),
-        ),
-        ScanRule(
-            id = "link",
-            labelEn = "Link or contact needs verification",
-            labelTa = "இணைப்பு அல்லது எண் சரிபார்க்கப்பட வேண்டும்",
-            explanationEn = "The message includes a link or asks you to contact a number. Do not use contact details supplied in a suspicious message.",
-            explanationTa = "இந்த செய்தியில் இணைய இணைப்பு அல்லது தொலைபேசி எண் உள்ளது. சந்தேகமான செய்தியில் உள்ள விவரங்களைப் பயன்படுத்த வேண்டாம்.",
-            regex = Regex("""(https?://|www\.|bit\.ly|tinyurl|wa\.me|t\.me|\+91[\s-]?\d{5}[\s-]?\d{5}|\b\d{10}\b)""", RegexOption.IGNORE_CASE),
-            severity = RiskLevel.CAUTION,
-            highlightTerms = listOf("https://", "http://", "www.", "bit.ly", "wa.me", "t.me", "+91"),
-        ),
-    )
-
     fun scanMessageLocal(message: String, tamil: Boolean = false): MessageScanResult {
-        val matches = scanRules
-            .filter { it.regex.containsMatchIn(message) }
-            .map { rule ->
-                MatchedIndicator(
-                    id = rule.id,
-                    label = if (tamil) rule.labelTa else rule.labelEn,
-                    explanation = if (tamil) rule.explanationTa else rule.explanationEn,
-                    severity = rule.severity,
-                    highlightTerms = rule.highlightTerms,
-                )
-            }
-
-        val risk = when {
-            matches.any { it.severity == RiskLevel.DANGER } -> RiskLevel.DANGER
-            matches.isNotEmpty() -> RiskLevel.CAUTION
-            else -> RiskLevel.CLEAR
+        val assessment = MessageScamAnalyzer.analyze(message, tamil = tamil)
+        val matches = assessment.riskFindings.map { ev ->
+            MatchedIndicator(
+                id = ev.categoryId,
+                label = ev.title,
+                explanation = ev.description,
+                severity = ev.strength.toRiskLevel(),
+                highlightTerms = ev.matchedSpans,
+                ruleId = ev.ruleId,
+                strength = ev.strength,
+            )
         }
-
-        val verdict = when (risk) {
-            RiskLevel.DANGER -> if (tamil) {
-                "பல தீவிர எச்சரிக்கை அறிகுறிகள் கண்டறியப்பட்டன."
-            } else {
-                "Several serious warning signs were found."
-            }
-
-            RiskLevel.CAUTION -> if (tamil) {
-                "சில விவரங்களைத் தனியாக சரிபார்க்க வேண்டும்."
-            } else {
-                "Some details deserve independent verification."
-            }
-
-            RiskLevel.CLEAR -> if (tamil) {
-                "இந்த உரையில் அமைக்கப்பட்ட மோசடி அறிகுறிகள் எதுவும் கிடைக்கவில்லை."
-            } else {
-                "No configured warning patterns were found in this text."
-            }
-        }
-
-        return MessageScanResult(risk = risk, verdict = verdict, matches = matches)
+        return MessageScanResult(
+            risk = assessment.classification.toRiskLevel(),
+            verdict = assessment.verdictLabel,
+            matches = matches,
+            assessment = assessment,
+        )
     }
 
     fun parseUpiUri(value: String, tamil: Boolean = false): Result<UpiPaymentDetails> {

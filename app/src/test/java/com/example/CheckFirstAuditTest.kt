@@ -301,7 +301,7 @@ class CheckFirstAuditTest {
         val label = requireNotNull(recordedLabel)
         assertFalse(label.contains("UPI PIN"))
         assertFalse(label.contains("example.invalid"))
-        composeRule.onNodeWithText("Several serious warning signs were found.").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("High risk — possible scam").performScrollTo().assertIsDisplayed()
     }
 
     @Test
